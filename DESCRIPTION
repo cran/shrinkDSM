@@ -1,0 +1,36 @@
+Package: shrinkDSM
+Type: Package
+Title: Efficient Bayesian Inference for Dynamic Survival Models with
+        Shrinkage
+Version: 0.1.0
+Authors@R: 
+    c(person(given = "Daniel",
+             family = "Winkler",
+             role = c("aut", "cre"),
+             email = "daniel.winkler@wu.ac.at"),
+      person(given = "Peter",
+             family = "Knaus",
+             role = "aut",
+             email = "peter.knaus@wu.ac.at",
+             comment = c(ORCID = "0000-0001-6498-7084")))
+Description: Efficient Markov chain Monte Carlo (MCMC) algorithms for fully 
+    Bayesian estimation of dynamic survival models with shrinkage priors. 
+    Details on the algorithms used are provided in Wagner (2011) <doi:10.1007/s11222-009-9164-5>, 
+    Bitto and Frühwirth-Schnatter (2019) <doi:10.1016/j.jeconom.2018.11.006> and
+    Cadonna et al. (2020) <doi:10.3390/econometrics8020020>.
+License: GPL (>= 2)
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 3.3.0),
+Imports: Rcpp, stochvol (>= 3.0.3), coda, utils, shrinkTVP (>= 2.0.2)
+LinkingTo: Rcpp, RcppArmadillo, RcppProgress, stochvol, shrinkTVP
+RoxygenNote: 7.1.1
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+NeedsCompilation: yes
+Packaged: 2021-09-02 18:57:54 UTC; daniel
+Author: Daniel Winkler [aut, cre],
+  Peter Knaus [aut] (<https://orcid.org/0000-0001-6498-7084>)
+Maintainer: Daniel Winkler <daniel.winkler@wu.ac.at>
+Repository: CRAN
+Date/Publication: 2021-09-06 08:50:02 UTC
