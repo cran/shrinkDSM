@@ -32,6 +32,7 @@ shrinkDSM(
   hyperprior_param,
   sv_param,
   MH_tuning,
+  phi_param,
   display_progress = TRUE
 )
 }
@@ -47,7 +48,7 @@ is called. No \code{NA}s are allowed in the response variable and the covariates
 Determines whether the triple gamma, double gamma or ridge prior are used for \code{theta_sr} and \code{beta_mean}.
 The default is "double".}
 
-\item{delta}{The status indicator of the last period, 0=censored or 1=event observed.}
+\item{delta}{The status indicator of the last period, 0 = censored or 1 = event observed.}
 
 \item{S}{integer vector of time points that start a new interval.
 Parameters are fixed within an interval and vary across intervals.}
@@ -160,6 +161,37 @@ The following elements can be supplied:
 \item \code{a_tau_batch_size}: positive integer. The default value is 50.
 }}
 
+\item{phi_param}{\emph{optional} named list containing hyperparameter values for the grouped factor
+and values to tune the MH steps for \code{a_phi} and \code{c_phi}. Not all have to be supplied, with
+those missing being replaced by the default values. Any list elements that are misnamed will be ignored
+and a warning will be thrown. Ignored if \code{group} is missing. The following elements can be supplied:
+\itemize{
+\item \code{mod_type_phi} character string that reads either \code{"triple"}, \code{"double"} or \code{"ridge"}. Determines whether the triple gamma, double gamma or ridge prior are used for \code{phi}. The default is "double".
+\item \code{learn_a_phi}: logical value. The default is \code{TRUE}.
+\item \code{a_phi}: positive, real number. The default value is 0.1.
+\item \code{learn_c_phi}: logical value. The default is \code{TRUE}.
+\item \code{c_phi}: positive, real number. The default value is  0.1,
+\item \code{a_phi_eq_c_phi}: logical value. The default is \code{FALSE}.
+\item \code{learn_lambda2_B_phi}: logical value. The default is \code{TRUE}.
+\item \code{lambda2_B_phi}: positive, real number. The default value is 20.
+\item \code{e1_phi}: positive, real number. The default value is 0.001.
+\item \code{e2_phi}: positive, real number. The default value is 0.001.
+\item \code{beta_a_phi}: positive, real number. The default value is 10.
+\item \code{alpha_a_phi}: positive, real number. The default value is 5.
+\item \code{beta_c_phi}: positive, real number. The default value is 10.
+\item \code{alpha_c_phi}: positive, real number. The default value is 5.
+\item \code{a_phi_adaptive}: logical value. The default is \code{TRUE}.
+\item \code{a_phi_tuning_par}: positive, real number. The default value is 1.
+\item \code{a_phi_target_rate}: positive, real number, between 0 and 1. The default value is 0.44.
+\item \code{a_phi_max_adapt}: positive, real number. The default value is 0.01.
+\item \code{a_phi_batch_size}: positive integer. The default value is 50.
+\item \code{c_phi_adaptive}: logical value. The default is \code{TRUE}.
+\item \code{c_phi_tuning_par}: positive, real number. The default value is 1.
+\item \code{c_phi_target_rate}:  positive, real number, between 0 and 1. The default value is 0.44.
+\item \code{c_phi_max_adapt}: positive, real number. The default value is 0.01.
+\item \code{c_phi_batch_size}: positive integer. The default value is 50.
+}}
+
 \item{display_progress}{logical value indicating whether the progress bar and other informative output should be
 displayed. The default value is \code{TRUE}.}
 }
@@ -228,4 +260,9 @@ mod3 <- shrinkDSM(time ~ radiation, gastric,
                  hyperprior_param = list(beta_a_xi = 5,
                                          alpha_a_xi = 10))
 }
+}
+\author{
+Daniel Winkler \email{daniel.winkler@wu.ac.at}
+
+Peter Knaus \email{peter.knaus@wu.ac.at}
 }

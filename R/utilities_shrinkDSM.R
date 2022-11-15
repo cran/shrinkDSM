@@ -15,7 +15,7 @@
 #' a new division is created.
 #'
 #' @return Returns an integer vector of time points to be used as division points \code{S} in \code{shrinkDSM}.
-#' 
+#'
 #' @author Daniel Winkler \email{daniel.winkler@@wu.ac.at}
 #' @examples
 #' data("gastric")
@@ -35,7 +35,7 @@ divisionpoints <- function(times, delta, events = 1){
   assert(events >= 1, "At least one observation per interval is needed (events > 0)")
 
 
-  S <- sort(unique(times[delta == 1])[c(rep(FALSE, events-1), TRUE)])
+  S <- sort(unique(times[delta == 1]))[c(rep(FALSE, events-1), TRUE)]
   return(S)
 }
 
@@ -125,15 +125,24 @@ plot_tmp <- utils::getFromNamespace("plot.mcmc.tvp", "shrinkTVP")
 #' }
 #' @export
 plot.mcmc.dsm.tvp <- function(x, probs = c(0.025, 0.25, 0.75, 0.975),
-                          shaded = TRUE, quantlines = FALSE,
-                          shadecol = "skyblue", shadealpha = 0.5,
-                          quantlty = 2, quantcol = "black", quantlwd = 0.5,
-                          drawzero = TRUE, zerolty = 2, zerolwd = 1, zerocol = "grey", ...){
+                              shaded = TRUE, quantlines = FALSE,
+                              shadecol = "skyblue", shadealpha = 0.5,
+                              quantlty = 2, quantcol = "black", quantlwd = 0.5,
+                              drawzero = TRUE, zerolty = 2, zerolwd = 1, zerocol = "grey", ...){
   S <- attr(x, "S")
   maxy <- attr(x, "lastsurvtime")
-  if(ncol(x) > length(S) + 1) {x <- x[, 2:ncol(x)]}
+
+  if (S[length(S)] == maxy) S <- S[1:(length(S) - 1)]
+  if (S[1] == 0) S <- S[2:length(S)]
+
+  if(ncol(x) > (length(S) + 1)) {
+    x_internal <- x[, 2:ncol(x)]
+  } else {
+    x_internal <- x
+  }
+
   x_vec <- c(0, rep(S, each = 2), maxy)
-  x_list <- rep(split(x, rep(1:(ncol(x)), each = nrow(x))), each = 2)
+  x_list <- rep(split(x_internal, rep(1:(ncol(x_internal)), each = nrow(x_internal))), each = 2)
   newobj <- do.call(cbind, x_list)
   attr(newobj, "index") <- x_vec
 
@@ -206,7 +215,7 @@ checkvalues <- function(values){
   values <- as.numeric(values)-1
   level_map <- list()
   level_map <- mapply(function(g,v) {level_map[[g]] = v},
-                        vlevels, as.list((1:length(vlevels))-1))
+                      vlevels, as.list((1:length(vlevels))-1))
   return (list(values = values, levels = level_map))
 }
 
@@ -255,4 +264,149 @@ print.shrinkDSM <- function(x, ...){
              " - ", formatC(attr(x, "nburn"), width = 7), " burn-in\n",
              " - ", formatC(attr(x, "nthin"), width = 7), " thinning\n"))
   invisible(x)
+}
+
+
+#' Prepare time-varying inputs for estimation of a dynamic survival model
+#'
+#' This function pre-processes time-varying inputs in such a way that \code{shrinkDSM}
+#' can work with time-varying inputs. Its main inputs are two data frames, namely
+#' \code{surv_data} and \code{covariate_data}. \code{surv_data} contains meta data about
+#' each observation (i.e. survival time and censoring indicator), while \code{covariate_data}
+#' contains the time-varying covariates (one per observation and time interval) and an
+#' index for which time interval each covariate is observed in. The two are merged
+#' together via an ID that needs to be unique for each observation and present in both
+#' \code{surv_data} and \code{covariate_data}.
+#'
+#' @param surv_data data frame containing meta-data for each observation (survival time and
+#' censoring indicator) as well as an ID for each observation.
+#' @param covariate_data data frame containing the time-varying covariates
+#' (one per observation and time interval), an index for which time interval each covariate
+#' is observed in as well as an ID for each observation.
+#' @param id_var character string specifying the column name of the ID variable. If the name
+#' is different in \code{surv_data} and \code{covariate_data}, \code{id_var} will be used in
+#' \code{surv_data}, whereas \code{covariate_id_var} will be used in \code{covariate_data}.
+#' @param surv_var character string specifying the column name of the survival times in
+#' \code{surv_data}.
+#' @param delta_var character string specifying the column name of the status indicators in
+#' \code{surv_data}, 0 = censored or 1 = event observed..
+#' @param interval_var character string specifying the column name of the time interval ID in
+#' \code{covariate_data}.
+#' @param covariate_id_var character string specifying the column name of the ID variable in
+#' \code{covariate_data}. Defaults to \code{id_var}.
+#'
+#' @return Returns an object of class \code{data.frame} and \code{tvsurv} to be used as an input in
+#' \code{shrinkDSM}.
+#'
+#' @author Daniel Winkler \email{daniel.winkler@@wu.ac.at}
+#' @author Peter Knaus \email{peter.knaus@@wu.ac.at}
+#' @examples
+#' # A toy example with 5 observations and 2 covariates, observed over 3 time periods
+#' set.seed(123)
+#' n_obs <- 5
+#' surv_var <- round(rgamma(n_obs, 1, .1)) + 1
+#' delta_var <- sample(size = n_obs, c(0, 1), prob = c(0.2, 0.8), replace = TRUE)
+#'
+#' surv_data <- data.frame(id_var = 1:n_obs, surv_var, delta_var)
+#'
+#' # Determine intervals
+#' S <- c(3, 11)
+#'
+#' # Create synthetic observations for each individual
+#' covariate_list <- list()
+#'
+#' for (i in 1:n_obs) {
+#'   nr_periods_survived <- sum(surv_var[i] > S) + 1
+#'   covariate_list[[i]] <- data.frame(id_var = i,
+#'                                     interval_var = 1:nr_periods_survived,
+#'                                     x1 = rnorm(nr_periods_survived),
+#'                                     x2 = rnorm(nr_periods_survived))
+#' }
+#'
+#' # Bind all individual covariate data frames together
+#' # Each observation now has a covariate in each period they
+#' # were observed in.
+#' covariate_data <- do.call(rbind, covariate_list)
+#'
+#' # Call prep_tvinput to pre-process for shrinkDSM
+#' merged_data <- prep_tvinput(surv_data,
+#'                             covariate_data,
+#'                             id_var = "id_var",
+#'                             surv_var = "surv_var",
+#'                             delta_var = "delta_var",
+#'                             interval_var = "interval_var")
+#'
+#' # Can now be used in shrinkDSM
+#' # Note that delta is now automatically extracted from merged_data,
+#' # providing it will throw a warning
+#' mod <- shrinkDSM(surv_var ~ x1 + x2, merged_data, S = S)
+#' @export
+prep_tvinput <- function(surv_data, covariate_data, id_var, surv_var, delta_var, interval_var, covariate_id_var = id_var) {
+
+  # Input checking
+  assert((("data.frame" %in% class(surv_data)) && ("data.frame" %in% class(covariate_data))),
+         "both surv_data and covariate_data have to be of class data.frame")
+
+  for (i in c("id_var", "surv_var", "delta_var", "interval_var", "covariate_id_var")) {
+    assert(class(get(i)) == "character" & is.scalar(get(i)), paste0(i, " has to be a single character string"))
+  }
+
+  assert(id_var %in% names(surv_data), "id_var column not found in surv_data")
+  assert(surv_var %in% names(surv_data), "surv_var column not found in surv_data")
+  assert(delta_var %in% names(surv_data), "delta_var column not found in surv_data")
+  assert(interval_var %in% names(covariate_data), "interval_var column not found in surv_data")
+  assert(covariate_id_var %in% names(covariate_data), "covariate_id_var column not found in surv_data")
+
+
+  # This checks that all IDs in covariate_data are also in surv_data
+  unmatched_ids <- unique(covariate_data[!covariate_data[, covariate_id_var] %in% surv_data[, id_var],
+                                         covariate_id_var])
+  if (length(unmatched_ids) > 0) {
+    err <- paste0("following IDs found in covariate_data but not in surv_data: ", paste(unmatched_ids, collapse = ", "))
+    stop(err)
+  }
+
+
+  # This piece of code checks whether any individual is missing certain intervals
+  index <- unique(covariate_data[, interval_var])
+  missing_intervals <- which(tapply(covariate_data[, interval_var], covariate_data[, covariate_id_var], function(x) {
+    sorted_intervals <- sort(x)
+    !sum(x %in% index) == (sum(sorted_intervals == index[1:length(sorted_intervals)]))
+  }))
+
+  if (length(missing_intervals > 0)) {
+    err <- paste0("following IDs are missing intervals before last observation: ", paste(missing_intervals, collapse = ", "))
+    stop(err)
+  }
+
+
+  # Get time period each observation exits sample
+  dies_in <- c(tapply(covariate_data[,covariate_id_var], covariate_data[,covariate_id_var], length))
+  surv_data$dies_in <- dies_in
+
+  # Merge time varying (Z) and constant data (survival time, delta)
+  # Creates a long data.frame with constant data repeated
+  data_long <- merge(surv_data, covariate_data, by.x = id_var,
+                     by.y = covariate_id_var, all = TRUE)
+
+  # Sort data first by interval (in increasing order),
+  # then by those that exit sample in current time interval,
+  # then by overall survival time.
+  data_long_order <- order(data_long[,interval_var],
+                           data_long$dies_in == data_long[,interval_var],
+                           data_long[,surv_var],
+                           decreasing = c(FALSE, TRUE, TRUE))
+  data_long_sorted <- data_long[data_long_order,]
+
+  # Remove helper column from return
+  data_long_sorted$dies_in <- NULL
+
+  # Add class to differentiate in shrinkDSM
+  attr(data_long_sorted, "class") <- c("data.frame", "tvsurv")
+
+  # Add original response and delta for init.cpp
+  attr(data_long_sorted, "orig_response") <- surv_data[, surv_var]
+  attr(data_long_sorted, "orig_delta") <- surv_data[, delta_var]
+
+  return(data_long_sorted)
 }

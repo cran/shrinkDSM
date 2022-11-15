@@ -13,7 +13,7 @@
 #' @param mod_type character string that reads either \code{"triple"}, \code{"double"} or \code{"ridge"}.
 #' Determines whether the triple gamma, double gamma or ridge prior are used for \code{theta_sr} and \code{beta_mean}.
 #' The default is "double".
-#' @param delta The status indicator of the last period, 0=censored or 1=event observed.
+#' @param delta The status indicator of the last period, 0 = censored or 1 = event observed.
 #' @param S integer vector of time points that start a new interval.
 #' Parameters are fixed within an interval and vary across intervals.
 #' @param group \emph{optional} grouping indicator for latent factor.
@@ -102,9 +102,40 @@
 #' \item \code{a_tau_max_adapt}: positive, real number. The default value is 0.01.
 #' \item \code{a_tau_batch_size}: positive integer. The default value is 50.
 #' }
+#' @param phi_param \emph{optional} named list containing hyperparameter values for the grouped factor
+#' and values to tune the MH steps for \code{a_phi} and \code{c_phi}. Not all have to be supplied, with
+#' those missing being replaced by the default values. Any list elements that are misnamed will be ignored
+#' and a warning will be thrown. Ignored if \code{group} is missing. The following elements can be supplied:
+#' \itemize{
+#' \item \code{mod_type_phi} character string that reads either \code{"triple"}, \code{"double"} or \code{"ridge"}. Determines whether the triple gamma, double gamma or ridge prior are used for \code{phi}. The default is "double".
+#' \item \code{learn_a_phi}: logical value. The default is \code{TRUE}.
+#' \item \code{a_phi}: positive, real number. The default value is 0.1.
+#' \item \code{learn_c_phi}: logical value. The default is \code{TRUE}.
+#' \item \code{c_phi}: positive, real number. The default value is  0.1,
+#' \item \code{a_phi_eq_c_phi}: logical value. The default is \code{FALSE}.
+#' \item \code{learn_lambda2_B_phi}: logical value. The default is \code{TRUE}.
+#' \item \code{lambda2_B_phi}: positive, real number. The default value is 20.
+#' \item \code{e1_phi}: positive, real number. The default value is 0.001.
+#' \item \code{e2_phi}: positive, real number. The default value is 0.001.
+#' \item \code{beta_a_phi}: positive, real number. The default value is 10.
+#' \item \code{alpha_a_phi}: positive, real number. The default value is 5.
+#' \item \code{beta_c_phi}: positive, real number. The default value is 10.
+#' \item \code{alpha_c_phi}: positive, real number. The default value is 5.
+#' \item \code{a_phi_adaptive}: logical value. The default is \code{TRUE}.
+#' \item \code{a_phi_tuning_par}: positive, real number. The default value is 1.
+#' \item \code{a_phi_target_rate}: positive, real number, between 0 and 1. The default value is 0.44.
+#' \item \code{a_phi_max_adapt}: positive, real number. The default value is 0.01.
+#' \item \code{a_phi_batch_size}: positive integer. The default value is 50.
+#' \item \code{c_phi_adaptive}: logical value. The default is \code{TRUE}.
+#' \item \code{c_phi_tuning_par}: positive, real number. The default value is 1.
+#' \item \code{c_phi_target_rate}:  positive, real number, between 0 and 1. The default value is 0.44.
+#' \item \code{c_phi_max_adapt}: positive, real number. The default value is 0.01.
+#' \item \code{c_phi_batch_size}: positive integer. The default value is 50.
+#' }
+#'
 #' @param display_progress logical value indicating whether the progress bar and other informative output should be
 #' displayed. The default value is \code{TRUE}.
-#'  
+#'
 #' @return  The value returned is a list object of class \code{shrinkDSM} containing
 #' \item{\code{beta}}{\code{list} object containing an \code{mcmc.dsm.tvp} object for the parameter draws from the posterior distribution of the centered
 #' states, one for each covariate. In the case that there is only one covariate, this becomes just a single \code{mcmc.dsm.tvp} object.}
@@ -133,12 +164,12 @@
 #' \item{\code{priorvals}}{\code{list} object containing hyperparameter values of the prior distributions, as specified by the user.}
 #' \item{\code{model}}{\code{list} object containing the model matrix, model response and formula used.}
 #' \item{\code{summaries}}{\code{list} object containing a collection of summary statistics of the posterior draws.}
-#' 
+#'
 #' To display the output, use \code{plot} and \code{summary}. The \code{summary} method displays the specified prior values stored in
 #' \code{priorvals} and the posterior summaries stored in \code{summaries}, while the \code{plot} method calls \code{coda}'s \code{plot.mcmc}
 #' or the \code{plot.mcmc.dsm.tvp} method. Furthermore, all functions that can be applied to \code{coda::mcmc} objects
 #' (e.g. \code{coda::acfplot}) can be applied to all output elements that are \code{coda} compatible.
-#' 
+#'
 #' @examples
 #' \donttest{
 #' set.seed(123)
@@ -163,6 +194,8 @@
 #'                  hyperprior_param = list(beta_a_xi = 5,
 #'                                          alpha_a_xi = 10))
 #' }
+#' @author Daniel Winkler \email{daniel.winkler@@wu.ac.at}
+#' @author Peter Knaus \email{peter.knaus@@wu.ac.at}
 #' @export
 shrinkDSM <- function(formula,
                       data,
@@ -191,11 +224,27 @@ shrinkDSM <- function(formula,
                       hyperprior_param,
                       sv_param,
                       MH_tuning,
+                      phi_param,
                       display_progress = TRUE){
+
+  # Check if time-varying inputs are present
+  tv_inputs <- "tvsurv" %in% class(data)
+
   assert(missing(group) || length(group) == nrow(data), "Grouping indicator, group, has to be omitted or the same length as data")
-  assert(length(delta) == nrow(data), "Status indicator, delta, has to be the same length as data")
+
+  if (!tv_inputs) {
+    assert(length(delta) == nrow(data), "Status indicator, delta, has to be the same length as data")
+  } else {
+    if (!missing(delta)) warning("If time-varying inputs are provided, values for delta are extracted from data and input delta is ignored",
+                                 immediate. = TRUE)
+  }
 
   ## Implementation of formula interface:
+  # Check if formula is a formula
+  if (inherits(formula, "formula") == FALSE){
+    stop("formula is not of class formula")
+  }
+
   mf <- match.call(expand.dots = FALSE)
   m <- match(x = c("formula", "data", "subset"),
              table = names(mf), nomatch = 0L)
@@ -207,8 +256,14 @@ shrinkDSM <- function(formula,
   for(name in names(mf)){
     assert(!any(class(mf[[name]]) %in% c("POSIXct", "POSIXt","Date")), "No date variables allowed as predictors")
   }
+
   # Create Vector y
-  y <- model.response(mf, "numeric")
+  if (tv_inputs) {
+    y <- attr(data, "orig_response")
+    delta <- attr(data, "orig_delta")
+  } else {
+    y <- model.response(mf, "numeric")
+  }
   mt <- attr(x = mf, which = "terms")
   # Create Matrix X with dummies and transformations
   z <- model.matrix(object = mt, data = mf)
@@ -377,12 +432,42 @@ shrinkDSM <- function(formula,
 
   }
 
-  # Check if formula is a formula
-  if (inherits(formula, "formula") == FALSE){
-    stop("formula is not of class formula")
+
+  default_phi <- list(mod_type_phi = "double",
+                      learn_a_phi = TRUE,
+                      a_phi = .1,
+                      learn_c_phi = TRUE,
+                      c_phi = .1,
+                      a_phi_eq_c_phi = FALSE,
+                      learn_lambda2_B_phi = TRUE,
+                      lambda2_B_phi = 20,
+                      e1_phi = 0.001,
+                      e2_phi = 0.001,
+                      beta_a_phi = 10,
+                      alpha_a_phi = 5,
+                      beta_c_phi = 10,
+                      alpha_c_phi = 5,
+                      a_phi_adaptive = TRUE,
+                      a_phi_tuning_par = 1,
+                      a_phi_target_rate = 0.44,
+                      a_phi_max_adapt = 0.01,
+                      a_phi_batch_size = 50,
+                      c_phi_adaptive = TRUE,
+                      c_phi_tuning_par = 1,
+                      c_phi_target_rate = 0.44,
+                      c_phi_max_adapt = 0.01,
+                      c_phi_batch_size = 50)
+
+  if (missing(phi_param)) {
+    phi_param <- default_phi
+  } else {
+    phi_param <- list_merger(default_phi, phi_param)
   }
 
-
+  phi_param$target_rates_phi <- unlist(phi_param[grep("target", names(phi_param))])
+  phi_param$max_adapts_phi <- unlist(phi_param[grep("max", names(phi_param))])
+  phi_param$batch_sizes_phi <- unlist(phi_param[grep("size", names(phi_param))])
+  phi_param$adaptive_phi <- unlist(phi_param[grep("adaptive", names(phi_param))])
 
   # Extract colnames
 
@@ -396,7 +481,13 @@ shrinkDSM <- function(formula,
   # Sort objects
   order <- order(y, decreasing = TRUE)
   y_sort <- y[order]
-  z_sort <- z[order, ]
+
+  if (tv_inputs) {
+    z_sort <- as.matrix(z)
+  } else {
+    z_sort <- z[order, ]
+    z_sort <- as.matrix(z_sort)
+  }
   if(!missing(group)){
     # Group is guaranteed to be the values here
     group_sort <- group$values[order]
@@ -404,61 +495,62 @@ shrinkDSM <- function(formula,
 
   if(2 %in% delta){delta <- delta - 1}
   assert(all(delta %in% c(0,1)),
-    "delta must contain only 0/1, 1/2, or TRUE/FALSE")
+         "delta must contain only 0/1, 1/2, or TRUE/FALSE")
 
-  z_sort <- as.matrix(z_sort)
   delta_sort <- as.matrix(as.integer(delta[order]))
 
 
   runtime <- system.time({
-  res <- do_shrinkDSM(y_sort,
-                      z_sort,
-                      mod_type,
-                      delta_sort,
-                      S,
-                      group_sort,
-                      niter,
-                      nburn,
-                      nthin,
-                      hyperprior_param$d1,
-                      hyperprior_param$d2,
-                      hyperprior_param$e1,
-                      hyperprior_param$e2,
-                      hyperprior_param$sigma2_phi,
-                      learn_lambda2_B,
-                      learn_kappa2_B,
-                      lambda2_B,
-                      kappa2_B,
-                      learn_a_xi,
-                      learn_a_tau,
-                      a_xi,
-                      a_tau,
-                      learn_c_xi,
-                      learn_c_tau,
-                      c_xi,
-                      c_tau,
-                      a_eq_c_xi,
-                      a_eq_c_tau,
-                      MH_tuning$a_xi_tuning_par,
-                      MH_tuning$a_tau_tuning_par,
-                      MH_tuning$c_xi_tuning_par,
-                      MH_tuning$c_tau_tuning_par,
-                      hyperprior_param$beta_a_xi,
-                      hyperprior_param$beta_a_tau,
-                      hyperprior_param$alpha_a_xi,
-                      hyperprior_param$alpha_a_tau,
-                      hyperprior_param$beta_c_xi,
-                      hyperprior_param$beta_c_tau,
-                      hyperprior_param$alpha_c_xi,
-                      hyperprior_param$alpha_c_tau,
-                      sv_param$Bsigma_sv,
-                      sv_param$a0_sv,
-                      sv_param$b0_sv,
-                      display_progress,
-                      unlist(MH_tuning[grep("adaptive", names(MH_tuning))]),
-                      unlist(MH_tuning[grep("target", names(MH_tuning))]),
-                      unlist(MH_tuning[grep("max", names(MH_tuning))]),
-                      unlist(MH_tuning[grep("size", names(MH_tuning))]))
+    res <- do_shrinkDSM(y_sort,
+                        z_sort,
+                        mod_type,
+                        delta_sort,
+                        S,
+                        group_sort,
+                        niter,
+                        nburn,
+                        nthin,
+                        hyperprior_param$d1,
+                        hyperprior_param$d2,
+                        hyperprior_param$e1,
+                        hyperprior_param$e2,
+                        hyperprior_param$sigma2_phi,
+                        learn_lambda2_B,
+                        learn_kappa2_B,
+                        lambda2_B,
+                        kappa2_B,
+                        learn_a_xi,
+                        learn_a_tau,
+                        a_xi,
+                        a_tau,
+                        learn_c_xi,
+                        learn_c_tau,
+                        c_xi,
+                        c_tau,
+                        a_eq_c_xi,
+                        a_eq_c_tau,
+                        MH_tuning$a_xi_tuning_par,
+                        MH_tuning$a_tau_tuning_par,
+                        MH_tuning$c_xi_tuning_par,
+                        MH_tuning$c_tau_tuning_par,
+                        hyperprior_param$beta_a_xi,
+                        hyperprior_param$beta_a_tau,
+                        hyperprior_param$alpha_a_xi,
+                        hyperprior_param$alpha_a_tau,
+                        hyperprior_param$beta_c_xi,
+                        hyperprior_param$beta_c_tau,
+                        hyperprior_param$alpha_c_xi,
+                        hyperprior_param$alpha_c_tau,
+                        sv_param$Bsigma_sv,
+                        sv_param$a0_sv,
+                        sv_param$b0_sv,
+                        display_progress,
+                        unlist(MH_tuning[grep("adaptive", names(MH_tuning))]),
+                        unlist(MH_tuning[grep("target", names(MH_tuning))]),
+                        unlist(MH_tuning[grep("max", names(MH_tuning))]),
+                        unlist(MH_tuning[grep("size", names(MH_tuning))]),
+                        tv_inputs,
+                        phi_param)
   })
   if(display_progress == TRUE){
     cat("Timing (elapsed): ", file=stderr())
@@ -468,11 +560,13 @@ shrinkDSM <- function(formula,
     cat("Converting results to coda objects and summarizing draws... ", file=stderr())
   }
 
+
+
   # Remove empty storage elements
   res[sapply(res, function(x) 0 %in% dim(x))] <- NULL
   res$MH_diag[sapply(res$MH_diag, function(x) 0 %in% dim(x))] <- NULL
 
-    # Create object to hold prior values
+  # Create object to hold prior values
   res$priorvals <- c(hyperprior_param,
                      sv_param,
                      a_xi = a_xi,
@@ -597,6 +691,18 @@ shrinkDSM <- function(formula,
     }
   }
 
+  if (!missing(group)) {
+    # Identify factor loadings
+    modif <- ifelse(res$phi[, 1] < 0, -1, 1)
+    res$phi <- modif * res$phi
+    res$f <- modif * res$f
+
+    # add original names to groups
+    key <- as.numeric(gsub("phi", "", colnames(res$phi)))
+    orig_names <- paste0("phi_", names(group$levels)[key + 1])
+    colnames(res$phi) <- orig_names
+  }
+
   if (display_progress == TRUE) {
     cat("Done!\n", file = stderr())
   }
@@ -616,6 +722,7 @@ shrinkDSM <- function(formula,
   attr(res, "nburn") <- nburn
   attr(res, "nthin") <- nthin
   attr(res, "colnames") <-  col_names
+  attr(res, "tv_inputs") <- tv_inputs
 
   return(res)
 }

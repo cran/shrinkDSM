@@ -12,53 +12,55 @@ using namespace Rcpp;
 
 // [[Rcpp::export]]
 List do_shrinkDSM(arma::vec y,
-                      arma::mat z,
-                      std::string mod_type,
-                      arma::vec delta,
-                      arma::vec it,
-                      arma::vec group,
-                      int niter,
-                      int nburn,
-                      int nthin,
-                      double d1,
-                      double d2,
-                      double e1,
-                      double e2,
-                      arma::vec sigma2_phi,
-                      bool learn_lambda2_B,
-                      bool learn_kappa2_B,
-                      double lambda2_B,
-                      double kappa2_B,
-                      bool learn_a_xi,
-                      bool learn_a_tau,
-                      double a_xi,
-                      double a_tau,
-                      bool learn_c_xi,
-                      bool learn_c_tau,
-                      double c_xi,
-                      double c_tau,
-                      bool a_eq_c_xi,
-                      bool a_eq_c_tau,
-                      double a_tuning_par_xi,
-                      double a_tuning_par_tau,
-                      double c_tuning_par_xi,
-                      double c_tuning_par_tau,
-                      double beta_a_xi,
-                      double beta_a_tau,
-                      double alpha_a_xi,
-                      double alpha_a_tau,
-                      double beta_c_xi,
-                      double beta_c_tau,
-                      double alpha_c_xi,
-                      double alpha_c_tau,
-                      double Bsigma_sv,
-                      double a0_sv,
-                      double b0_sv,
-                      bool display_progress,
-                      arma::vec adaptive,
-                      arma::vec target_rates,
-                      arma::vec max_adapts,
-                      arma::ivec batch_sizes) {
+                  arma::mat z,
+                  std::string mod_type,
+                  arma::vec delta,
+                  arma::vec it,
+                  arma::vec group,
+                  int niter,
+                  int nburn,
+                  int nthin,
+                  double d1,
+                  double d2,
+                  double e1,
+                  double e2,
+                  arma::vec sigma2_phi,
+                  bool learn_lambda2_B,
+                  bool learn_kappa2_B,
+                  double lambda2_B,
+                  double kappa2_B,
+                  bool learn_a_xi,
+                  bool learn_a_tau,
+                  double a_xi,
+                  double a_tau,
+                  bool learn_c_xi,
+                  bool learn_c_tau,
+                  double c_xi,
+                  double c_tau,
+                  bool a_eq_c_xi,
+                  bool a_eq_c_tau,
+                  double a_tuning_par_xi,
+                  double a_tuning_par_tau,
+                  double c_tuning_par_xi,
+                  double c_tuning_par_tau,
+                  double beta_a_xi,
+                  double beta_a_tau,
+                  double alpha_a_xi,
+                  double alpha_a_tau,
+                  double beta_c_xi,
+                  double beta_c_tau,
+                  double alpha_c_xi,
+                  double alpha_c_tau,
+                  double Bsigma_sv,
+                  double a0_sv,
+                  double b0_sv,
+                  bool display_progress,
+                  arma::vec adaptive,
+                  arma::vec target_rates,
+                  arma::vec max_adapts,
+                  arma::ivec batch_sizes,
+                  bool tv_inputs,
+                  List phi_prior) {
 
   // progress bar setup
   arma::vec prog_rep_points = arma::round(arma::linspace(0, niter, 50));
@@ -78,7 +80,7 @@ List do_shrinkDSM(arma::vec y,
     grouped = false;
   }
 
-  int nsave = (niter - nburn)/nthin;
+  int nsave = std::floor((niter - nburn)/nthin);
 
   // Parameters of Mixture Components from FS&F 2006
   arma::vec weights = {1.6776755e-001, 1.4703656e-001, 1.2530633e-001, 1.1597262e-001, 1.0706560e-001, 1.0375856e-001,  1.0148516e-001,  8.8013418e-002,  3.9624418e-002,  3.9697961e-003 };
@@ -94,9 +96,9 @@ List do_shrinkDSM(arma::vec y,
   // Log hazard
   arma::vec log_lam_samp;
   arma::vec nev;
-  init(it, tau_obs, int_tau, cen_tau, Z_tau, G_tau, log_lam_samp, nev, y, delta, group, z, grouped);
+  init(it, tau_obs, int_tau, cen_tau, Z_tau, G_tau, log_lam_samp, nev, y, delta, group, z, grouped, tv_inputs);
   const int J = it.n_elem;
-  const int n_tau = tau_obs.n_elem;
+  int n_tau = tau_obs.n_elem;
 
   arma::vec phi_tau_samp;
   arma::vec f_c_tau_samp;
@@ -129,15 +131,9 @@ List do_shrinkDSM(arma::vec y,
   arma::vec theta_sr_samp(K);
   theta_sr_samp.fill(0.2);
 
-  // Factor loadings
-  arma::vec phi_samp(G, arma::fill::ones);
-
-  // Factor
-  arma::vec f_samp(J, arma::fill::ones);
-
   // Shrinkage adapatation parameter for xi2
   double a_xi_samp;
-  if (learn_a_xi & (mod_type != "ridge")) {
+  if (learn_a_xi && (mod_type != "ridge")) {
     a_xi_samp = 0.1;
   } else {
     a_xi_samp = a_xi;
@@ -146,7 +142,7 @@ List do_shrinkDSM(arma::vec y,
 
   // Shrinkage adaptation parameter for tau2
   double a_tau_samp;
-  if (learn_a_tau & (mod_type != "ridge")) {
+  if (learn_a_tau && (mod_type != "ridge")) {
     a_tau_samp = 0.1;
   } else {
     a_tau_samp = a_tau;
@@ -154,7 +150,7 @@ List do_shrinkDSM(arma::vec y,
 
   // Tail parameter for xi2
   double c_xi_samp;
-  if (learn_c_xi & (mod_type == "triple")) {
+  if (learn_c_xi && (mod_type == "triple")) {
     c_xi_samp = 0.1;
   } else {
     c_xi_samp = c_xi;
@@ -162,7 +158,7 @@ List do_shrinkDSM(arma::vec y,
 
   // Tail parameter for tau2
   double c_tau_samp;
-  if (learn_c_tau & (mod_type == "triple")) {
+  if (learn_c_tau && (mod_type == "triple")) {
     c_tau_samp = 0.1;
   } else {
     c_tau_samp = c_tau;
@@ -185,7 +181,7 @@ List do_shrinkDSM(arma::vec y,
 
   // Global shrinkage parameter of xi2
   double kappa2_B_samp;
-  if (learn_kappa2_B & (mod_type != "ridge")) {
+  if (learn_kappa2_B && (mod_type != "ridge")) {
     kappa2_B_samp = 20;
   } else {
     kappa2_B_samp = kappa2_B;
@@ -193,7 +189,7 @@ List do_shrinkDSM(arma::vec y,
 
   // Global shrinkage parameter of tau2
   double lambda2_B_samp;
-  if (learn_lambda2_B & (mod_type != "ridge")) {
+  if (learn_lambda2_B && (mod_type != "ridge")) {
     lambda2_B_samp = 20;
   } else {
     lambda2_B_samp = lambda2_B;
@@ -254,7 +250,7 @@ List do_shrinkDSM(arma::vec y,
   arma::vec h_samp(J, arma::fill::ones);
   arma::vec sv_para = {0,
                        .7,
-                       1};
+  1};
   arma::uvec r(J); r.fill(5);
   using stochvol::PriorSpec;
   const PriorSpec prior_spec = {  // prior specification object for the update_*_sv functions
@@ -275,7 +271,7 @@ List do_shrinkDSM(arma::vec y,
     ExpertSpec_FastSV::ProposalPhi::IMMEDIATE_ACCEPT_REJECT_NORMAL  // immediately reject (mu,phi,sigma) if proposed phi is outside (-1, 1)
   };
 
-// Values used for adaptive MH
+  // Values used for adaptive MH
   arma::mat batches;
   arma::vec curr_sds;
   arma::ivec batch_nrs;
@@ -314,19 +310,10 @@ List do_shrinkDSM(arma::vec y,
 
   arma::vec kappa2_B_save;
   arma::vec lambda2_B_save;
-  arma::mat phi_save;
-  arma::cube f_save;
-  arma::cube h_save;
-  if (grouped){
-    f_save = arma::cube(J, 1, nsave, arma::fill::none);
-    phi_save = arma::mat(G, nsave, arma::fill::none);
-    h_save = arma::cube(J, 1, nsave, arma::fill::none);
-  }
-
-  if (learn_kappa2_B & (mod_type != "ridge")) {
+  if (learn_kappa2_B && (mod_type != "ridge")) {
     kappa2_B_save = arma::vec(nsave, arma::fill::zeros);
   }
-  if (learn_lambda2_B & (mod_type != "ridge")) {
+  if (learn_lambda2_B && (mod_type != "ridge")) {
     lambda2_B_save = arma::vec(nsave, arma::fill::zeros);
   }
 
@@ -335,17 +322,17 @@ List do_shrinkDSM(arma::vec y,
   arma::vec c_xi_save;
   arma::vec c_tau_save;
 
-  if (learn_a_xi & (mod_type != "ridge")) {
+  if (learn_a_xi && (mod_type != "ridge")) {
     a_xi_save = arma::vec(nsave, arma::fill::zeros);
   }
-  if (learn_a_tau & (mod_type != "ridge")) {
+  if (learn_a_tau && (mod_type != "ridge")) {
     a_tau_save = arma::vec(nsave, arma::fill::zeros);
   }
 
-  if (learn_c_xi & (mod_type == "triple")) {
+  if (learn_c_xi && (mod_type == "triple")) {
     c_xi_save = arma::vec(nsave, arma::fill::zeros);
   }
-  if (learn_c_tau & (mod_type == "triple")) {
+  if (learn_c_tau && (mod_type == "triple")) {
     c_tau_save = arma::vec(nsave, arma::fill::zeros);
   }
 
@@ -358,32 +345,149 @@ List do_shrinkDSM(arma::vec y,
   arma::vec c_xi_acc_rate_save;
   arma::vec c_tau_acc_rate_save;
 
-  if (bool(adaptive(0)) & learn_a_xi & (mod_type != "ridge")) {
+  if (bool(adaptive(0)) && learn_a_xi && (mod_type != "ridge")) {
     a_xi_sd_save = arma::vec(std::floor(niter/batch_sizes(0)), arma::fill::zeros);
     a_xi_acc_rate_save = arma::vec(std::floor(niter/batch_sizes(0)), arma::fill::zeros);
   }
 
-  if (bool(adaptive(1)) & learn_a_tau & (mod_type != "ridge")) {
+  if (bool(adaptive(1)) && learn_a_tau && (mod_type != "ridge")) {
     a_tau_sd_save = arma::vec(std::floor(niter/batch_sizes(1)), arma::fill::zeros);
     a_tau_acc_rate_save = arma::vec(std::floor(niter/batch_sizes(1)), arma::fill::zeros);
   }
 
-  if (bool(adaptive(2)) & learn_c_xi & (mod_type == "triple")) {
+  if (bool(adaptive(2)) && learn_c_xi && (mod_type == "triple")) {
     c_xi_sd_save = arma::vec(std::floor(niter/batch_sizes(2)), arma::fill::zeros);
     c_xi_acc_rate_save = arma::vec(std::floor(niter/batch_sizes(2)), arma::fill::zeros);
   }
 
-  if (bool(adaptive(3)) & learn_c_tau & (mod_type == "triple")) {
+  if (bool(adaptive(3)) && learn_c_tau && (mod_type == "triple")) {
     c_tau_sd_save = arma::vec(std::floor(niter/batch_sizes(3)), arma::fill::zeros);
     c_tau_acc_rate_save = arma::vec(std::floor(niter/batch_sizes(3)), arma::fill::zeros);
   }
 
 
+  // Get all objects for factors/loadings and the associated shrinkage
+  std::string mod_type_phi = as<std::string>(phi_prior["mod_type_phi"]);
+  bool learn_a_phi = as<bool>(phi_prior["learn_a_phi"]);
+  double a_phi = as<double>(phi_prior["a_phi"]);
+  bool learn_c_phi = as<bool>(phi_prior["learn_c_phi"]);
+  double c_phi = as<double>(phi_prior["c_phi"]);
+  bool a_phi_eq_c_phi = as<bool>(phi_prior["a_phi_eq_c_phi"]);
+  bool learn_lambda2_B_phi = as<bool>(phi_prior["learn_lambda2_B_phi"]);
+  double lambda2_B_phi = as<double>(phi_prior["lambda2_B_phi"]);
+  double e1_phi = as<double>(phi_prior["e1_phi"]);
+  double e2_phi = as<double>(phi_prior["e2_phi"]);
+  double beta_a_phi = as<double>(phi_prior["beta_a_phi"]);
+  double alpha_a_phi = as<double>(phi_prior["alpha_a_phi"]);
+  double beta_c_phi = as<double>(phi_prior["beta_c_phi"]);
+  double alpha_c_phi = as<double>(phi_prior["alpha_c_phi"]);
+  bool a_phi_adaptive = as<bool>(phi_prior["a_phi_adaptive"]);
+  bool c_phi_adaptive = as<bool>(phi_prior["c_phi_adaptive"]);
+  double a_phi_tuning_par = as<double>(phi_prior["a_phi_tuning_par"]);
+  double c_phi_tuning_par = as<double>(phi_prior["c_phi_tuning_par"]);
+  arma::vec target_rates_phi = as<arma::vec>(phi_prior["target_rates_phi"]);
+  arma::vec max_adapts_phi = as<arma::vec>(phi_prior["max_adapts_phi"]);
+  arma::ivec batch_sizes_phi = as<arma::ivec>(phi_prior["batch_sizes_phi"]);
+  arma::vec adaptive_phi = as<arma::vec>(phi_prior["adaptive_phi"]);
+
+  // Initial values for sampling
+  // Factor loadings
+  arma::vec phi_samp(G, arma::fill::ones);
+
+  // Factor
+  arma::vec f_samp(J, arma::fill::zeros);
+
+
+  // Shrinkage adaptation parameter for phi
+  double a_phi_samp;
+  if (learn_a_phi && (mod_type_phi != "ridge")) {
+    a_phi_samp = 0.1;
+  } else {
+    a_phi_samp = a_phi;
+  }
+
+  // Tail parameter for phi
+  double c_phi_samp;
+  if (learn_c_phi && (mod_type_phi == "triple")) {
+    c_phi_samp = 0.1;
+  } else {
+    c_phi_samp = c_phi;
+  }
+
+  // Needed for data augmentation of TG sampler
+  double e2_phi_samp;
+
+  // lambda2 data augmented for TG sampler for phi
+  arma::vec lambda2_til_phi_samp(G);
+  if (mod_type_phi == "triple") {
+    lambda2_til_phi_samp = arma::vec(G);
+    lambda2_til_phi_samp.fill(20);
+  }
+
+  // Global shrinkage parameter of phi
+  double lambda2_B_phi_samp;
+  if (learn_lambda2_B_phi && (mod_type_phi != "ridge")) {
+    lambda2_B_phi_samp = 20;
+  } else {
+    lambda2_B_phi_samp = lambda2_B_phi;
+  }
+
+  // Prior variances and alternate parameterization counterparts
+  arma::vec tau2_phi_samp(G);
+  arma::vec tau2_til_phi_samp(G);
+  if (mod_type_phi == "double") {
+    tau2_phi_samp = arma::vec(G, arma::fill::ones);
+  } else if (mod_type_phi == "triple") {
+    tau2_til_phi_samp = arma::vec(G, arma::fill::ones);
+
+    shrinkTVP::calc_xi2_tau2(tau2_phi_samp,
+                             tau2_til_phi_samp,
+                             lambda2_til_phi_samp,
+                             lambda2_B_phi_samp,
+                             c_phi_samp,
+                             a_phi_samp);
+  } else {
+    tau2_phi_samp.fill(2.0/lambda2_B_phi_samp);
+  }
+
+  // Values used for adaptive MH
+  bool is_adaptive_phi = a_phi_adaptive || c_phi_adaptive;
+  arma::mat batches_phi;
+  arma::vec curr_sds_phi;
+  arma::ivec batch_nrs_phi;
+  arma::ivec batch_pos_phi;
+
+  if (is_adaptive_phi) {
+    batch_pos_phi = arma::ivec(2, arma::fill::zeros);
+    batches_phi = arma::mat(arma::max(batch_sizes_phi), 2, arma::fill::zeros);
+    curr_sds_phi = {a_phi_tuning_par,
+                    c_phi_tuning_par};
+    batch_nrs_phi = arma::ivec(2, arma::fill::ones);
+  }
+
+
+
+
+  arma::mat phi_save;
+  arma::cube f_save;
+  arma::cube h_save;
+
+
+  if (grouped){
+    f_save = arma::cube(J, 1, nsave, arma::fill::none);
+    phi_save = arma::mat(G, nsave, arma::fill::none);
+    h_save = arma::cube(J, 1, nsave, arma::fill::none);
+  }
   // Begin Gibbs loop
   for (int iter = 0; iter < niter; iter++){
 
     // Augmented survival times
     arma::vec X_samp = -arma::log(tau_samp) - mu_samp;
+
+    if (grouped) {
+      X_samp -= f_c_tau_samp;
+    }
+
 
     // Draw non-centered states
     sample_beta_McCausland(beta_nc_samp,
@@ -537,29 +641,21 @@ List do_shrinkDSM(arma::vec y,
 
     /*
      In the case that groups are supplied, the latent factor and the group
-     specific factor loadings have to be sampled and added to log_lam_samp
+     specific factor loadings have to be sampled and added to log_lam_samp.
      */
     if (grouped){
       // Create demeaned X to isolate factors and loadings on RHS
-      arma::vec X_demean_samp = X_samp - log_lam_samp;
+      arma::vec X_demean_samp = X_samp - log_lam_samp + f_c_tau_samp;
 
       // Sample the factor loadings
       sample_phi(phi_samp,
                  X_demean_samp,
                  var_samp,
                  f_samp,
-                 sigma2_phi,
+                 tau2_phi_samp,
                  int_tau,
                  G_finder,
                  G);
-
-      // Boosting via ASIS to improve mixing of factor loadings
-      resample_phi_g(phi_samp,
-                     f_samp,
-                     sigma2_phi,
-                     h_samp,
-                     J,
-                     G);
 
       // fill up phi_tau with the values just sampled
       // TO-DO put into sample_f?
@@ -578,26 +674,169 @@ List do_shrinkDSM(arma::vec y,
                finder,
                J);
 
-
+      // Boosting via ASIS to improve mixing of factor loadings
+      resample_phi_g(phi_samp,
+                     f_samp,
+                     tau2_phi_samp,
+                     h_samp,
+                     J,
+                     G);
 
       // Sample volatilites of the factor
       double mu = sv_para(0);
       double phi = sv_para(1);
       double sigma = std::sqrt(sv_para(2));
 
-      arma::vec datastand = arma::log(arma::square(f_samp));
+      arma::vec datastand = 2. * arma::log(arma::abs(f_samp));
       stochvol::update_fast_sv(datastand, mu, phi, sigma, h0_samp, h_samp, r, prior_spec, expert);
-
 
       sv_para = {mu, phi, std::pow(sigma, 2)};
 
-      double modif = 1;
-      if (phi_samp[0] < 0) {
-        modif = -1;
+      arma::vec curr_batch;
+
+      if (mod_type_phi == "double") {
+        // Sample a with MH
+        if (learn_a_phi){
+          if (is_adaptive_phi) {
+            curr_batch = batches_phi.col(0);
+          }
+          a_phi_samp = shrinkTVP::DG_MH_step(a_phi_samp,
+                                             a_phi_tuning_par,
+                                             lambda2_B_phi_samp,
+                                             phi_samp,
+                                             beta_a_phi,
+                                             alpha_a_phi,
+                                             adaptive_phi(0),
+                                             curr_batch,
+                                             curr_sds_phi(0),
+                                             target_rates_phi(0),
+                                             max_adapts_phi(0),
+                                             batch_nrs_phi(0),
+                                             batch_sizes_phi(0),
+                                             batch_pos_phi(0));
+          if (is_adaptive_phi) {
+            batches_phi.col(0) = curr_batch;
+          }
+        }
+
+
+
+        shrinkTVP::DG_sample_local_shrink(tau2_phi_samp,
+                                          phi_samp,
+                                          lambda2_B_phi_samp,
+                                          a_phi_samp);
+
+        if (learn_lambda2_B_phi == true) {
+          lambda2_B_phi_samp = shrinkTVP::DG_sample_global_shrink(tau2_phi_samp,
+                                                                  a_phi_samp,
+                                                                  e1_phi,
+                                                                  e2_phi);
+        }
+
+      } else if (mod_type_phi == "triple") {
+
+        // Sample a_xi/a_tau using MH
+        if (learn_a_phi){
+
+          if (is_adaptive_phi) {
+            curr_batch = batches_phi.col(0);
+          }
+          a_phi_samp = shrinkTVP::TG_MH_step(a_phi_samp,
+                                             a_phi_tuning_par,
+                                             lambda2_B_phi_samp,
+                                             lambda2_til_phi_samp,
+                                             phi_samp,
+                                             beta_a_phi,
+                                             alpha_a_phi,
+                                             false,
+                                             e2_phi_samp,
+                                             c_phi_samp,
+                                             a_phi_eq_c_phi,
+                                             adaptive_phi(0),
+                                             curr_batch,
+                                             curr_sds_phi(0),
+                                             target_rates_phi(0),
+                                             max_adapts_phi(0),
+                                             batch_nrs_phi(0),
+                                             batch_sizes_phi(0),
+                                             batch_pos_phi(0));
+
+          if (is_adaptive_phi) {
+            batches_phi.col(0) = curr_batch;
+          }
+        }
+
+        shrinkTVP::TG_sample_prior_var_til(tau2_til_phi_samp,
+                                           phi_samp,
+                                           lambda2_til_phi_samp,
+                                           lambda2_B_phi_samp,
+                                           a_phi_samp,
+                                           c_phi_samp);
+        shrinkTVP::TG_sample_local_shrink(lambda2_til_phi_samp,
+                                          phi_samp,
+                                          tau2_til_phi_samp,
+                                          lambda2_B_phi_samp,
+                                          c_phi_samp,
+                                          a_phi_samp);
+
+        if (learn_c_phi && (a_phi_eq_c_phi == false)){
+          if (is_adaptive_phi) {
+            curr_batch = batches_phi.col(1);
+          }
+          c_phi_samp = shrinkTVP::TG_MH_step(c_phi_samp,
+                                             c_phi_tuning_par,
+                                             lambda2_B_phi_samp,
+                                             lambda2_til_phi_samp,
+                                             phi_samp,
+                                             beta_c_phi,
+                                             alpha_c_phi,
+                                             true,
+                                             e2_phi_samp,
+                                             a_phi_samp,
+                                             a_phi_eq_c_phi,
+                                             adaptive_phi(1),
+                                             curr_batch,
+                                             curr_sds_phi(1),
+                                             target_rates_phi(1),
+                                             max_adapts_phi(1),
+                                             batch_nrs_phi(1),
+                                             batch_sizes_phi(1),
+                                             batch_pos_phi(1));
+
+
+          if (is_adaptive_phi) {
+            batches_phi.col(1) = curr_batch;
+          }
+
+        } else if (a_phi_eq_c_phi == true) {
+          c_phi_samp = a_phi_samp;
+        }
+
+
+        if (learn_lambda2_B_phi == true) {
+          e2_phi_samp = shrinkTVP::TG_sample_d2(lambda2_B_phi_samp,
+                                                a_phi_samp,
+                                                c_phi_samp);
+
+          lambda2_B_phi_samp = shrinkTVP::TG_sample_global_shrink(tau2_til_phi_samp,
+                                                                  lambda2_til_phi_samp,
+                                                                  phi_samp,
+                                                                  a_phi_samp,
+                                                                  c_phi_samp,
+                                                                  e2_phi_samp,
+                                                                  false);
+        }
+
+        shrinkTVP::calc_xi2_tau2(tau2_phi_samp,
+                                 tau2_til_phi_samp,
+                                 lambda2_til_phi_samp,
+                                 lambda2_B_phi_samp,
+                                 c_phi_samp,
+                                 a_phi_samp);
+
+        std::for_each(tau2_phi_samp.begin(), tau2_phi_samp.end(), shrinkTVP::res_protector);
       }
 
-      f_samp = modif * f_samp;
-      phi_samp = modif * phi_samp;
 
       /*
        Once everything to do with the factors and the factor loadings has
@@ -615,6 +854,7 @@ List do_shrinkDSM(arma::vec y,
 
     // Sample auxilliary survival times
     // R C code uses p(x) = 1/lambda * exp(-1/lambda  * x) parameterization for exponential dist.
+    // todo: do this only for cen_tau == 1;
     double exp_param;
     for (int i = 0; i < n_tau; i++){
       // This stops the parameter of the exponential distribution from becoming Inf
@@ -639,11 +879,17 @@ List do_shrinkDSM(arma::vec y,
                  means,
                  0);
 
+
+
+
     // Store everything
-    if ((iter % nthin == 0) && (iter >= nburn)){
-      theta_sr_save.col((iter-nburn)/nthin) = theta_sr_samp;
-      beta_mean_save.col((iter-nburn)/nthin) = beta_mean_samp;
-      beta_c_save.slice((iter-nburn)/nthin) = beta_c_samp.t();
+    if (((1 + iter - nburn) % nthin == 0) && (iter >= nburn)){
+
+      int store_pos = ((1 + iter - nburn) / nthin) - 1;
+
+      theta_sr_save.col(store_pos) = theta_sr_samp;
+      beta_mean_save.col(store_pos) = beta_mean_samp;
+      beta_c_save.slice(store_pos) = beta_c_samp.t();
       if(grouped){
 
         // Identification of factor loadings
@@ -652,66 +898,66 @@ List do_shrinkDSM(arma::vec y,
         //   modif = -1;
         // }
 
-        f_save.slice((iter-nburn)/nthin) = modif * f_samp;
-        h_save.slice((iter-nburn)/nthin) = h_samp;
-        phi_save.col((iter-nburn)/nthin) = modif * phi_samp;
+        f_save.slice(store_pos) = modif * f_samp;
+        h_save.slice(store_pos) = h_samp;
+        phi_save.col(store_pos) = modif * phi_samp;
       }
       if (mod_type != "ridge"){
-        xi2_save.col((iter-nburn)/nthin) = xi2_samp;
-        tau2_save.col((iter-nburn)/nthin) = tau2_samp;
+        xi2_save.col(store_pos) = xi2_samp;
+        tau2_save.col(store_pos) = tau2_samp;
       }
       // conditional storing
       if (mod_type == "double") {
-        xi2_save.col((iter-nburn)/nthin) = xi2_samp;
-        tau2_save.col((iter-nburn)/nthin) = tau2_samp;
+        xi2_save.col(store_pos) = xi2_samp;
+        tau2_save.col(store_pos) = tau2_samp;
       } else if (mod_type == "triple") {
-        xi2_save.col((iter-nburn)/nthin) = xi2_til_samp;
-        tau2_save.col((iter-nburn)/nthin) = tau2_til_samp;
+        xi2_save.col(store_pos) = xi2_til_samp;
+        tau2_save.col(store_pos) = tau2_til_samp;
       }
 
       if (mod_type == "triple") {
-        kappa2_save.col((iter-nburn)/nthin) = kappa2_til_samp;
-        lambda2_save.col((iter-nburn)/nthin) = lambda2_til_samp;
+        kappa2_save.col(store_pos) = kappa2_til_samp;
+        lambda2_save.col(store_pos) = lambda2_til_samp;
       }
 
-      if (learn_kappa2_B & (mod_type != "ridge")) {
-        kappa2_B_save((iter-nburn)/nthin) = kappa2_B_samp;
+      if (learn_kappa2_B && (mod_type != "ridge")) {
+        kappa2_B_save(store_pos) = kappa2_B_samp;
       }
-      if (learn_lambda2_B & (mod_type != "ridge")) {
-        lambda2_B_save((iter-nburn)/nthin) = lambda2_B_samp;
-      }
-
-      if (learn_a_xi & (mod_type != "ridge")) {
-        a_xi_save((iter-nburn)/nthin) = a_xi_samp;
+      if (learn_lambda2_B && (mod_type != "ridge")) {
+        lambda2_B_save(store_pos) = lambda2_B_samp;
       }
 
-      if (learn_a_tau & (mod_type != "ridge")) {
-        a_tau_save((iter-nburn)/nthin) = a_tau_samp;
+      if (learn_a_xi && (mod_type != "ridge")) {
+        a_xi_save(store_pos) = a_xi_samp;
       }
 
-      if (learn_c_xi & (mod_type == "triple")) {
-        c_xi_save((iter-nburn)/nthin) = c_xi_samp;
+      if (learn_a_tau && (mod_type != "ridge")) {
+        a_tau_save(store_pos) = a_tau_samp;
       }
 
-      if (learn_c_tau & (mod_type == "triple")) {
-        c_tau_save((iter-nburn)/nthin) = c_tau_samp;
+      if (learn_c_xi && (mod_type == "triple")) {
+        c_xi_save(store_pos) = c_xi_samp;
+      }
+
+      if (learn_c_tau && (mod_type == "triple")) {
+        c_tau_save(store_pos) = c_tau_samp;
       }
     }
 
     // Conditionally store MH statistics
-    if (learn_a_xi & bool(adaptive(0)) & (batch_pos(0) == (batch_sizes(0) - 2))){
+    if (learn_a_xi && bool(adaptive(0)) && (batch_pos(0) == (batch_sizes(0) - 2))){
       a_xi_sd_save(batch_nrs(0) - 1) = curr_sds(0);
       a_xi_acc_rate_save(batch_nrs(0) - 1) = arma::accu(batches.col(0))/batch_sizes(0);
     }
-    if (learn_a_tau & bool(adaptive(1)) & (batch_pos(1) == (batch_sizes(1) - 2))){
+    if (learn_a_tau && bool(adaptive(1)) && (batch_pos(1) == (batch_sizes(1) - 2))){
       a_tau_sd_save(batch_nrs(1) - 1) = curr_sds(1);
       a_tau_acc_rate_save(batch_nrs(1) - 1) = arma::accu(batches.col(1))/batch_sizes(1);
     }
-    if (learn_c_xi & bool(adaptive(2)) & (batch_pos(2) == (batch_sizes(2) - 2))){
+    if (learn_c_xi && bool(adaptive(2)) && (batch_pos(2) == (batch_sizes(2) - 2))){
       c_xi_sd_save(batch_nrs(2) - 1) = curr_sds(2);
       c_xi_acc_rate_save(batch_nrs(2) - 1) = arma::accu(batches.col(2))/batch_sizes(2);
     }
-    if (learn_c_tau & bool(adaptive(3)) & (batch_pos(3) == (batch_sizes(3) - 2))){
+    if (learn_c_tau && bool(adaptive(3)) && (batch_pos(3) == (batch_sizes(3) - 2))){
       c_tau_sd_save(batch_nrs(3) - 1) = curr_sds(3);
       c_tau_acc_rate_save(batch_nrs(3) - 1) = arma::accu(batches.col(3))/batch_sizes(3);
     }

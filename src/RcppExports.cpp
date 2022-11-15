@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // do_shrinkDSM
-List do_shrinkDSM(arma::vec y, arma::mat z, std::string mod_type, arma::vec delta, arma::vec it, arma::vec group, int niter, int nburn, int nthin, double d1, double d2, double e1, double e2, arma::vec sigma2_phi, bool learn_lambda2_B, bool learn_kappa2_B, double lambda2_B, double kappa2_B, bool learn_a_xi, bool learn_a_tau, double a_xi, double a_tau, bool learn_c_xi, bool learn_c_tau, double c_xi, double c_tau, bool a_eq_c_xi, bool a_eq_c_tau, double a_tuning_par_xi, double a_tuning_par_tau, double c_tuning_par_xi, double c_tuning_par_tau, double beta_a_xi, double beta_a_tau, double alpha_a_xi, double alpha_a_tau, double beta_c_xi, double beta_c_tau, double alpha_c_xi, double alpha_c_tau, double Bsigma_sv, double a0_sv, double b0_sv, bool display_progress, arma::vec adaptive, arma::vec target_rates, arma::vec max_adapts, arma::ivec batch_sizes);
-RcppExport SEXP _shrinkDSM_do_shrinkDSM(SEXP ySEXP, SEXP zSEXP, SEXP mod_typeSEXP, SEXP deltaSEXP, SEXP itSEXP, SEXP groupSEXP, SEXP niterSEXP, SEXP nburnSEXP, SEXP nthinSEXP, SEXP d1SEXP, SEXP d2SEXP, SEXP e1SEXP, SEXP e2SEXP, SEXP sigma2_phiSEXP, SEXP learn_lambda2_BSEXP, SEXP learn_kappa2_BSEXP, SEXP lambda2_BSEXP, SEXP kappa2_BSEXP, SEXP learn_a_xiSEXP, SEXP learn_a_tauSEXP, SEXP a_xiSEXP, SEXP a_tauSEXP, SEXP learn_c_xiSEXP, SEXP learn_c_tauSEXP, SEXP c_xiSEXP, SEXP c_tauSEXP, SEXP a_eq_c_xiSEXP, SEXP a_eq_c_tauSEXP, SEXP a_tuning_par_xiSEXP, SEXP a_tuning_par_tauSEXP, SEXP c_tuning_par_xiSEXP, SEXP c_tuning_par_tauSEXP, SEXP beta_a_xiSEXP, SEXP beta_a_tauSEXP, SEXP alpha_a_xiSEXP, SEXP alpha_a_tauSEXP, SEXP beta_c_xiSEXP, SEXP beta_c_tauSEXP, SEXP alpha_c_xiSEXP, SEXP alpha_c_tauSEXP, SEXP Bsigma_svSEXP, SEXP a0_svSEXP, SEXP b0_svSEXP, SEXP display_progressSEXP, SEXP adaptiveSEXP, SEXP target_ratesSEXP, SEXP max_adaptsSEXP, SEXP batch_sizesSEXP) {
+List do_shrinkDSM(arma::vec y, arma::mat z, std::string mod_type, arma::vec delta, arma::vec it, arma::vec group, int niter, int nburn, int nthin, double d1, double d2, double e1, double e2, arma::vec sigma2_phi, bool learn_lambda2_B, bool learn_kappa2_B, double lambda2_B, double kappa2_B, bool learn_a_xi, bool learn_a_tau, double a_xi, double a_tau, bool learn_c_xi, bool learn_c_tau, double c_xi, double c_tau, bool a_eq_c_xi, bool a_eq_c_tau, double a_tuning_par_xi, double a_tuning_par_tau, double c_tuning_par_xi, double c_tuning_par_tau, double beta_a_xi, double beta_a_tau, double alpha_a_xi, double alpha_a_tau, double beta_c_xi, double beta_c_tau, double alpha_c_xi, double alpha_c_tau, double Bsigma_sv, double a0_sv, double b0_sv, bool display_progress, arma::vec adaptive, arma::vec target_rates, arma::vec max_adapts, arma::ivec batch_sizes, bool tv_inputs, List phi_prior);
+RcppExport SEXP _shrinkDSM_do_shrinkDSM(SEXP ySEXP, SEXP zSEXP, SEXP mod_typeSEXP, SEXP deltaSEXP, SEXP itSEXP, SEXP groupSEXP, SEXP niterSEXP, SEXP nburnSEXP, SEXP nthinSEXP, SEXP d1SEXP, SEXP d2SEXP, SEXP e1SEXP, SEXP e2SEXP, SEXP sigma2_phiSEXP, SEXP learn_lambda2_BSEXP, SEXP learn_kappa2_BSEXP, SEXP lambda2_BSEXP, SEXP kappa2_BSEXP, SEXP learn_a_xiSEXP, SEXP learn_a_tauSEXP, SEXP a_xiSEXP, SEXP a_tauSEXP, SEXP learn_c_xiSEXP, SEXP learn_c_tauSEXP, SEXP c_xiSEXP, SEXP c_tauSEXP, SEXP a_eq_c_xiSEXP, SEXP a_eq_c_tauSEXP, SEXP a_tuning_par_xiSEXP, SEXP a_tuning_par_tauSEXP, SEXP c_tuning_par_xiSEXP, SEXP c_tuning_par_tauSEXP, SEXP beta_a_xiSEXP, SEXP beta_a_tauSEXP, SEXP alpha_a_xiSEXP, SEXP alpha_a_tauSEXP, SEXP beta_c_xiSEXP, SEXP beta_c_tauSEXP, SEXP alpha_c_xiSEXP, SEXP alpha_c_tauSEXP, SEXP Bsigma_svSEXP, SEXP a0_svSEXP, SEXP b0_svSEXP, SEXP display_progressSEXP, SEXP adaptiveSEXP, SEXP target_ratesSEXP, SEXP max_adaptsSEXP, SEXP batch_sizesSEXP, SEXP tv_inputsSEXP, SEXP phi_priorSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -65,13 +65,34 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type target_rates(target_ratesSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type max_adapts(max_adaptsSEXP);
     Rcpp::traits::input_parameter< arma::ivec >::type batch_sizes(batch_sizesSEXP);
-    rcpp_result_gen = Rcpp::wrap(do_shrinkDSM(y, z, mod_type, delta, it, group, niter, nburn, nthin, d1, d2, e1, e2, sigma2_phi, learn_lambda2_B, learn_kappa2_B, lambda2_B, kappa2_B, learn_a_xi, learn_a_tau, a_xi, a_tau, learn_c_xi, learn_c_tau, c_xi, c_tau, a_eq_c_xi, a_eq_c_tau, a_tuning_par_xi, a_tuning_par_tau, c_tuning_par_xi, c_tuning_par_tau, beta_a_xi, beta_a_tau, alpha_a_xi, alpha_a_tau, beta_c_xi, beta_c_tau, alpha_c_xi, alpha_c_tau, Bsigma_sv, a0_sv, b0_sv, display_progress, adaptive, target_rates, max_adapts, batch_sizes));
+    Rcpp::traits::input_parameter< bool >::type tv_inputs(tv_inputsSEXP);
+    Rcpp::traits::input_parameter< List >::type phi_prior(phi_priorSEXP);
+    rcpp_result_gen = Rcpp::wrap(do_shrinkDSM(y, z, mod_type, delta, it, group, niter, nburn, nthin, d1, d2, e1, e2, sigma2_phi, learn_lambda2_B, learn_kappa2_B, lambda2_B, kappa2_B, learn_a_xi, learn_a_tau, a_xi, a_tau, learn_c_xi, learn_c_tau, c_xi, c_tau, a_eq_c_xi, a_eq_c_tau, a_tuning_par_xi, a_tuning_par_tau, c_tuning_par_xi, c_tuning_par_tau, beta_a_xi, beta_a_tau, alpha_a_xi, alpha_a_tau, beta_c_xi, beta_c_tau, alpha_c_xi, alpha_c_tau, Bsigma_sv, a0_sv, b0_sv, display_progress, adaptive, target_rates, max_adapts, batch_sizes, tv_inputs, phi_prior));
+    return rcpp_result_gen;
+END_RCPP
+}
+// init_export
+Rcpp::List init_export(arma::vec& it, arma::vec& y, const arma::vec& delta, const arma::vec& G, const arma::mat& Z, arma::mat& Z_tau, const bool grouped, bool tv_inputs);
+RcppExport SEXP _shrinkDSM_init_export(SEXP itSEXP, SEXP ySEXP, SEXP deltaSEXP, SEXP GSEXP, SEXP ZSEXP, SEXP Z_tauSEXP, SEXP groupedSEXP, SEXP tv_inputsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec& >::type it(itSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type Z_tau(Z_tauSEXP);
+    Rcpp::traits::input_parameter< const bool >::type grouped(groupedSEXP);
+    Rcpp::traits::input_parameter< bool >::type tv_inputs(tv_inputsSEXP);
+    rcpp_result_gen = Rcpp::wrap(init_export(it, y, delta, G, Z, Z_tau, grouped, tv_inputs));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_shrinkDSM_do_shrinkDSM", (DL_FUNC) &_shrinkDSM_do_shrinkDSM, 48},
+    {"_shrinkDSM_do_shrinkDSM", (DL_FUNC) &_shrinkDSM_do_shrinkDSM, 50},
+    {"_shrinkDSM_init_export", (DL_FUNC) &_shrinkDSM_init_export, 8},
     {NULL, NULL, 0}
 };
 

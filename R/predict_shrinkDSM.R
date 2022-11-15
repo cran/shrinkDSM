@@ -43,10 +43,10 @@ predict_obs <- function(x_row, obj, ndraws, cens) {
     if (sum(selector) == 0) break
 
     par_surv[selector, j] <- rexp(sum(selector), lams[selector, j + 1])
-    selector <- par_surv[,j] > U[j]
-    if (j < length(U)){
+    selector <- par_surv[, j] > U[j]
+    if (j < length(U)) {
       par_surv[selector, j] <- U[j]
-    } else if (cens == TRUE){
+    } else if (cens == TRUE) {
       par_surv[selector, j] <- U[j]
     }
   }
@@ -97,6 +97,8 @@ predict_obs <- function(x_row, obj, ndraws, cens) {
 #' }
 #'@export
 predict.shrinkDSM <- function(object, newdata, cens = TRUE, ...){
+
+  assert(!attr(object, "tv_inputs"), "Predictions are not possible for models with time-varying covariates.")
 
   terms <- delete.response(object$model$terms)
   m <- model.frame(terms, data = newdata, xlev = object$model$xlevels)

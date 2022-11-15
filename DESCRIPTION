@@ -2,7 +2,7 @@ Package: shrinkDSM
 Type: Package
 Title: Efficient Bayesian Inference for Dynamic Survival Models with
         Shrinkage
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     c(person(given = "Daniel",
              family = "Winkler",
@@ -24,13 +24,13 @@ LazyData: true
 Depends: R (>= 3.3.0),
 Imports: Rcpp, stochvol (>= 3.0.3), coda, utils, shrinkTVP (>= 2.0.2)
 LinkingTo: Rcpp, RcppArmadillo, RcppProgress, stochvol, shrinkTVP
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.1
 Suggests: testthat (>= 3.0.0)
 Config/testthat/edition: 3
 NeedsCompilation: yes
-Packaged: 2021-09-02 18:57:54 UTC; daniel
+Packaged: 2022-11-13 09:18:53 UTC; danie
 Author: Daniel Winkler [aut, cre],
   Peter Knaus [aut] (<https://orcid.org/0000-0001-6498-7084>)
 Maintainer: Daniel Winkler <daniel.winkler@wu.ac.at>
 Repository: CRAN
-Date/Publication: 2021-09-06 08:50:02 UTC
+Date/Publication: 2022-11-15 21:20:02 UTC

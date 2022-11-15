@@ -15,6 +15,8 @@ void init(arma::vec& it,
           const arma::vec& delta,
           const arma::vec& G,
           const arma::mat& Z,
-          const bool grouped);
+          const bool grouped,
+          const bool Z_given = false
+          );
 
 #endif
