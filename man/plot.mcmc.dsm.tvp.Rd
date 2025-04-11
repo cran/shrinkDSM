@@ -106,8 +106,8 @@ plot(mod$beta$beta_radiation)
 }
 \seealso{
 Other plotting functions: 
-\code{\link{plot.shrinkDSM_pred}()},
-\code{\link{plot.shrinkDSM}()}
+\code{\link{plot.shrinkDSM}()},
+\code{\link{plot.shrinkDSM_pred}()}
 }
 \author{
 Peter Knaus \email{peter.knaus@wu.ac.at}

@@ -410,3 +410,6 @@ prep_tvinput <- function(surv_data, covariate_data, id_var, surv_var, delta_var,
 
   return(data_long_sorted)
 }
+
+#' @export
+survival::Surv

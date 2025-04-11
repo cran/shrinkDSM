@@ -38,7 +38,7 @@ shrinkDSM(
 }
 \arguments{
 \item{formula}{an object of class "formula": a symbolic representation of the model, as in the
-function \code{lm}. For details, see \code{\link{formula}}.}
+function \code{lm}. For details, see \code{\link{formula}}. The response may by a survival object as returned by the \code{Surv} function.}
 
 \item{data}{\emph{optional} data frame containing the response variable and the covariates. If not found in \code{data},
 the variables are taken from \code{environment(formula)}, typically the environment from which \code{shrinkDSM}
@@ -48,7 +48,7 @@ is called. No \code{NA}s are allowed in the response variable and the covariates
 Determines whether the triple gamma, double gamma or ridge prior are used for \code{theta_sr} and \code{beta_mean}.
 The default is "double".}
 
-\item{delta}{The status indicator of the last period, 0 = censored or 1 = event observed.}
+\item{delta}{The status indicator of the last period, 0 = censored or 1 = event observed. If the \code{formula} is a survival object this parameter is ignored.}
 
 \item{S}{integer vector of time points that start a new interval.
 Parameters are fixed within an interval and vary across intervals.}
@@ -233,7 +233,7 @@ or the \code{plot.mcmc.dsm.tvp} method. Furthermore, all functions that can be a
 \description{
 \code{shrinkDSM} samples from the joint posterior distribution of the parameters of a time-varying
 parameter survival model with shrinkage and returns the MCMC draws.
-See also \code{\link{shrinkTVP}} to see more examples of how to modify the prior setup of the time-varying
+See also \code{\link[shrinkTVP]{shrinkTVP}} to see more examples of how to modify the prior setup of the time-varying
 component of the model.
 }
 \examples{
@@ -246,19 +246,29 @@ intervals <- divisionpoints(gastric$time, gastric$status, 2)
 
 # Estimate baseline model
 mod <- shrinkDSM(time ~ radiation, gastric,
-                 delta = gastric$status, S = intervals)
+  delta = gastric$status, S = intervals
+)
+
+# Alternative formula interface
+mod_surv <- shrinkDSM(Surv(time, status) ~ radiation, gastric,
+  S = intervals
+)
 
 # Estimate model with different prior setup
 mod2 <- shrinkDSM(time ~ radiation, gastric,
-                 delta = gastric$status, S = intervals,
-                 mod_type = "triple")
+  delta = gastric$status, S = intervals,
+  mod_type = "triple"
+)
 
 # Change some of the hyperparameters
 mod3 <- shrinkDSM(time ~ radiation, gastric,
-                 delta = gastric$status, S = intervals,
-                 mod_type = "triple",
-                 hyperprior_param = list(beta_a_xi = 5,
-                                         alpha_a_xi = 10))
+  delta = gastric$status, S = intervals,
+  mod_type = "triple",
+  hyperprior_param = list(
+    beta_a_xi = 5,
+    alpha_a_xi = 10
+  )
+)
 }
 }
 \author{

@@ -2,18 +2,18 @@
 #'
 #' \code{shrinkDSM} samples from the joint posterior distribution of the parameters of a time-varying
 #' parameter survival model with shrinkage and returns the MCMC draws.
-#' See also \code{\link{shrinkTVP}} to see more examples of how to modify the prior setup of the time-varying
+#' See also \code{\link[shrinkTVP]{shrinkTVP}} to see more examples of how to modify the prior setup of the time-varying
 #' component of the model.
 #'
 #' @param formula an object of class "formula": a symbolic representation of the model, as in the
-#' function \code{lm}. For details, see \code{\link{formula}}.
+#' function \code{lm}. For details, see \code{\link{formula}}. The response may by a survival object as returned by the \code{Surv} function.
 #' @param data \emph{optional} data frame containing the response variable and the covariates. If not found in \code{data},
 #' the variables are taken from \code{environment(formula)}, typically the environment from which \code{shrinkDSM}
 #' is called. No \code{NA}s are allowed in the response variable and the covariates.
 #' @param mod_type character string that reads either \code{"triple"}, \code{"double"} or \code{"ridge"}.
 #' Determines whether the triple gamma, double gamma or ridge prior are used for \code{theta_sr} and \code{beta_mean}.
 #' The default is "double".
-#' @param delta The status indicator of the last period, 0 = censored or 1 = event observed.
+#' @param delta The status indicator of the last period, 0 = censored or 1 = event observed. If the \code{formula} is a survival object this parameter is ignored.
 #' @param S integer vector of time points that start a new interval.
 #' Parameters are fixed within an interval and vary across intervals.
 #' @param group \emph{optional} grouping indicator for latent factor.
@@ -180,19 +180,29 @@
 #'
 #' # Estimate baseline model
 #' mod <- shrinkDSM(time ~ radiation, gastric,
-#'                  delta = gastric$status, S = intervals)
+#'   delta = gastric$status, S = intervals
+#' )
+#'
+#' # Alternative formula interface
+#' mod_surv <- shrinkDSM(Surv(time, status) ~ radiation, gastric,
+#'   S = intervals
+#' )
 #'
 #' # Estimate model with different prior setup
 #' mod2 <- shrinkDSM(time ~ radiation, gastric,
-#'                  delta = gastric$status, S = intervals,
-#'                  mod_type = "triple")
+#'   delta = gastric$status, S = intervals,
+#'   mod_type = "triple"
+#' )
 #'
 #' # Change some of the hyperparameters
 #' mod3 <- shrinkDSM(time ~ radiation, gastric,
-#'                  delta = gastric$status, S = intervals,
-#'                  mod_type = "triple",
-#'                  hyperprior_param = list(beta_a_xi = 5,
-#'                                          alpha_a_xi = 10))
+#'   delta = gastric$status, S = intervals,
+#'   mod_type = "triple",
+#'   hyperprior_param = list(
+#'     beta_a_xi = 5,
+#'     alpha_a_xi = 10
+#'   )
+#' )
 #' }
 #' @author Daniel Winkler \email{daniel.winkler@@wu.ac.at}
 #' @author Peter Knaus \email{peter.knaus@@wu.ac.at}
@@ -205,7 +215,7 @@ shrinkDSM <- function(formula,
                       group,
                       subset,
                       niter = 10000,
-                      nburn = round(niter/2),
+                      nburn = round(niter / 2),
                       nthin = 1,
                       learn_a_xi = TRUE,
                       learn_a_tau = TRUE,
@@ -225,44 +235,62 @@ shrinkDSM <- function(formula,
                       sv_param,
                       MH_tuning,
                       phi_param,
-                      display_progress = TRUE){
-
+                      display_progress = TRUE) {
   # Check if time-varying inputs are present
   tv_inputs <- "tvsurv" %in% class(data)
 
   assert(missing(group) || length(group) == nrow(data), "Grouping indicator, group, has to be omitted or the same length as data")
 
-  if (!tv_inputs) {
-    assert(length(delta) == nrow(data), "Status indicator, delta, has to be the same length as data")
-  } else {
-    if (!missing(delta)) warning("If time-varying inputs are provided, values for delta are extracted from data and input delta is ignored",
-                                 immediate. = TRUE)
-  }
 
   ## Implementation of formula interface:
   # Check if formula is a formula
-  if (inherits(formula, "formula") == FALSE){
+  if (inherits(formula, "formula") == FALSE) {
     stop("formula is not of class formula")
   }
 
   mf <- match.call(expand.dots = FALSE)
-  m <- match(x = c("formula", "data", "subset"),
-             table = names(mf), nomatch = 0L)
+  m <- match(
+    x = c("formula", "data", "subset"),
+    table = names(mf), nomatch = 0L
+  )
   mf <- mf[c(1L, m)]
 
   mf$drop.unused.levels <- TRUE
   mf[[1L]] <- quote(stats::model.frame)
   mf <- eval(expr = mf, envir = parent.frame())
-  for(name in names(mf)){
-    assert(!any(class(mf[[name]]) %in% c("POSIXct", "POSIXt","Date")), "No date variables allowed as predictors")
+  for (name in names(mf)) {
+    assert(!any(class(mf[[name]]) %in% c("POSIXct", "POSIXt", "Date")), "No date variables allowed as predictors")
   }
-
+  mr <- model.response(mf, "numeric")
   # Create Vector y
   if (tv_inputs) {
     y <- attr(data, "orig_response")
     delta <- attr(data, "orig_delta")
+
+    if (inherits(mr, "Surv")) {
+      warning("If time-varying inputs are provided, values for delta are extracted from data and the status indictor of the Surv object is ignored",
+        immediate. = TRUE
+      )
+    }
+
+    if (!missing(delta)) {
+      warning("If time-varying inputs are provided, values for delta are extracted from data and input delta is ignored",
+        immediate. = TRUE
+      )
+    }
   } else {
-    y <- model.response(mf, "numeric")
+    if (inherits(mr, "Surv")) {
+      if (!missing(delta)) {
+        warning("If a Surv object is provided, values for delta are extracted from the Surv object and input delta is ignored",
+          immediate. = TRUE
+        )
+      }
+      y <- mr[, 1]
+      delta <- mr[, 2]
+    } else {
+      y <- mr
+      assert(length(delta) == nrow(data), "Status indicator, delta, has to be the same length as data")
+    }
   }
   mt <- attr(x = mf, which = "terms")
   # Create Matrix X with dummies and transformations
@@ -272,26 +300,28 @@ shrinkDSM <- function(formula,
 
   # Check that there are no NAs in y and x
   assert(!any(is.na(y)), "No NA values are allowed in survival time")
-  assert(all(y>0), "Survival times must be positive. Zeros are not allowed.")
+  assert(all(y > 0), "Survival times must be positive. Zeros are not allowed.")
   assert(!any(is.na(z)), "No NA values are allowed in covariates")
 
   assert(mod_type %in% c("double", "triple", "ridge"), "Allowed model types are: ridge, double, and triple")
   # default hyperparameter values
-  default_hyper <- list(c0 = 2.5,
-                        g0 = 5,
-                        G0 = 5 / (2.5 - 1),
-                        e1 = 0.001,
-                        e2 = 0.001,
-                        d1 = 0.001,
-                        d2 = 0.001,
-                        beta_a_xi = 10,
-                        beta_a_tau = 10,
-                        alpha_a_xi = 5,
-                        alpha_a_tau = 5,
-                        beta_c_xi = 2,
-                        beta_c_tau = 2,
-                        alpha_c_xi = 5,
-                        alpha_c_tau = 5)
+  default_hyper <- list(
+    c0 = 2.5,
+    g0 = 5,
+    G0 = 5 / (2.5 - 1),
+    e1 = 0.001,
+    e2 = 0.001,
+    d1 = 0.001,
+    d2 = 0.001,
+    beta_a_xi = 10,
+    beta_a_tau = 10,
+    alpha_a_xi = 5,
+    alpha_a_tau = 5,
+    beta_c_xi = 2,
+    beta_c_tau = 2,
+    alpha_c_xi = 5,
+    alpha_c_tau = 5
+  )
 
   if (!missing(group)) {
     group <- checkvalues(group)
@@ -302,31 +332,35 @@ shrinkDSM <- function(formula,
   }
 
   # default sv params
-  default_hyper_sv <- list(Bsigma_sv = 1,
-                           a0_sv = 5,
-                           b0_sv = 1.5)
+  default_hyper_sv <- list(
+    Bsigma_sv = 1,
+    a0_sv = 5,
+    b0_sv = 1.5
+  )
 
   # default tuning parameters
-  default_tuning_par <- list(a_xi_adaptive = TRUE,
-                             a_xi_tuning_par = 1,
-                             a_xi_target_rate = 0.44,
-                             a_xi_max_adapt = 0.01,
-                             a_xi_batch_size = 50,
-                             a_tau_adaptive = TRUE,
-                             a_tau_tuning_par = 1,
-                             a_tau_target_rate = 0.44,
-                             a_tau_max_adapt = 0.01,
-                             a_tau_batch_size = 50,
-                             c_xi_adaptive = TRUE,
-                             c_xi_tuning_par = 1,
-                             c_xi_target_rate = 0.44,
-                             c_xi_max_adapt = 0.01,
-                             c_xi_batch_size = 50,
-                             c_tau_adaptive = TRUE,
-                             c_tau_tuning_par = 1,
-                             c_tau_target_rate = 0.44,
-                             c_tau_max_adapt = 0.01,
-                             c_tau_batch_size = 50)
+  default_tuning_par <- list(
+    a_xi_adaptive = TRUE,
+    a_xi_tuning_par = 1,
+    a_xi_target_rate = 0.44,
+    a_xi_max_adapt = 0.01,
+    a_xi_batch_size = 50,
+    a_tau_adaptive = TRUE,
+    a_tau_tuning_par = 1,
+    a_tau_target_rate = 0.44,
+    a_tau_max_adapt = 0.01,
+    a_tau_batch_size = 50,
+    c_xi_adaptive = TRUE,
+    c_xi_tuning_par = 1,
+    c_xi_target_rate = 0.44,
+    c_xi_max_adapt = 0.01,
+    c_xi_batch_size = 50,
+    c_tau_adaptive = TRUE,
+    c_tau_tuning_par = 1,
+    c_tau_target_rate = 0.44,
+    c_tau_max_adapt = 0.01,
+    c_tau_batch_size = 50
+  )
 
   ## Merge user supplied and default parameters
   if (missing(hyperprior_param)) {
@@ -347,37 +381,42 @@ shrinkDSM <- function(formula,
     MH_tuning <- list_merger(default_tuning_par, MH_tuning)
   }
   # Check if all numeric inputs are correct
-  to_test_num <- list(lambda2_B = lambda2_B,
-                      kappa2_B = kappa2_B,
-                      a_xi = a_xi,
-                      a_tau = a_tau,
-                      c_xi = c_xi,
-                      c_tau = c_tau)
-  if(!missing(group)) {
-    cond = length(hyperprior_param$sigma2_phi) == length(unique(group$values)) && all(!sapply(hyperprior_param$sigma2_phi, numeric_input_bad))
-    assert(cond, "all elements of sigma2_phi have to be positive real numbers")}
-  if (missing(hyperprior_param) == FALSE){
+  to_test_num <- list(
+    lambda2_B = lambda2_B,
+    kappa2_B = kappa2_B,
+    a_xi = a_xi,
+    a_tau = a_tau,
+    c_xi = c_xi,
+    c_tau = c_tau
+  )
+  if (!missing(group)) {
+    cond <- length(hyperprior_param$sigma2_phi) == length(unique(group$values)) && all(!sapply(hyperprior_param$sigma2_phi, numeric_input_bad))
+    assert(cond, "all elements of sigma2_phi have to be positive real numbers")
+  }
+  if (missing(hyperprior_param) == FALSE) {
     to_test_num <- c(to_test_num, hyperprior_param[names(hyperprior_param) != "sigma2_phi"])
   }
 
-  if (missing(sv_param) == FALSE){
+  if (missing(sv_param) == FALSE) {
     to_test_num <- c(to_test_num, sv_param)
   }
 
-  if (missing(MH_tuning) == FALSE){
+  if (missing(MH_tuning) == FALSE) {
     to_test_num <- c(to_test_num, MH_tuning[!grepl("(batch|adaptive)", names(MH_tuning))])
   }
 
   bad_inp <- sapply(to_test_num, numeric_input_bad)
 
 
-  if (any(bad_inp)){
+  if (any(bad_inp)) {
     stand_names <- c(names(default_hyper), names(default_hyper_sv), "lambda2_B", "kappa2_B", "a_xi", "a_tau", "c_xi", "c_tau")
     bad_inp_names <- names(to_test_num)[bad_inp]
     bad_inp_names <- bad_inp_names[bad_inp_names %in% stand_names]
-    stop(paste0(paste(bad_inp_names, collapse = ", "),
-                ifelse(length(bad_inp_names) == 1, " has", " have"),
-                " to be a real, positive number"))
+    stop(paste0(
+      paste(bad_inp_names, collapse = ", "),
+      ifelse(length(bad_inp_names) == 1, " has", " have"),
+      " to be a real, positive number"
+    ))
   }
 
 
@@ -387,76 +426,84 @@ shrinkDSM <- function(formula,
   }
 
   # Check if all integer inputs are correct
-  to_test_int <- c(niter = niter,
-                   nburn = nburn,
-                   nthin = nthin,
-                   MH_tuning[grepl("batch", names(MH_tuning))])
+  to_test_int <- c(
+    niter = niter,
+    nburn = nburn,
+    nthin = nthin,
+    MH_tuning[grepl("batch", names(MH_tuning))]
+  )
 
   bad_int_inp <- sapply(to_test_int, int_input_bad)
 
-  if (any(bad_int_inp)){
+  if (any(bad_int_inp)) {
     bad_inp_names <- names(to_test_int)[bad_int_inp]
-    stop(paste0(paste(bad_inp_names, collapse = ", "),
-                ifelse(length(bad_inp_names) == 1, " has", " have"),
-                " to be a single, positive integer"))
-
+    stop(paste0(
+      paste(bad_inp_names, collapse = ", "),
+      ifelse(length(bad_inp_names) == 1, " has", " have"),
+      " to be a single, positive integer"
+    ))
   }
 
-  if ((niter - nburn) < 2){
+  if ((niter - nburn) < 2) {
     stop("niter has to be larger than or equal to nburn + 2")
   }
 
-  if (nthin == 0){
+  if (nthin == 0) {
     stop("nthin can not be 0")
   }
 
-  if ((niter - nburn)/2 < nthin){
+  if ((niter - nburn) / 2 < nthin) {
     stop("nthin can not be larger than (niter - nburn)/2")
   }
 
   # Check if all boolean inputs are correct
-  to_test_bool <- c(learn_lambda2_B = learn_lambda2_B,
-                    learn_kappa2_B = learn_kappa2_B,
-                    learn_a_xi = learn_a_xi,
-                    learn_a_tau = learn_a_tau,
-                    display_progress = display_progress,
-                    MH_tuning[grepl("adaptive", names(MH_tuning))])
+  to_test_bool <- c(
+    learn_lambda2_B = learn_lambda2_B,
+    learn_kappa2_B = learn_kappa2_B,
+    learn_a_xi = learn_a_xi,
+    learn_a_tau = learn_a_tau,
+    display_progress = display_progress,
+    MH_tuning[grepl("adaptive", names(MH_tuning))]
+  )
 
   bad_bool_inp <- sapply(to_test_bool, bool_input_bad)
 
-  if (any(bad_bool_inp)){
+  if (any(bad_bool_inp)) {
     bad_inp_names <- names(to_test_bool)[bad_bool_inp]
-    stop(paste0(paste(bad_inp_names, collapse = ", "),
-                ifelse(length(bad_inp_names) == 1, " has", " have"),
-                " to be a single logical value"))
-
+    stop(paste0(
+      paste(bad_inp_names, collapse = ", "),
+      ifelse(length(bad_inp_names) == 1, " has", " have"),
+      " to be a single logical value"
+    ))
   }
 
 
-  default_phi <- list(mod_type_phi = "double",
-                      learn_a_phi = TRUE,
-                      a_phi = .1,
-                      learn_c_phi = TRUE,
-                      c_phi = .1,
-                      a_phi_eq_c_phi = FALSE,
-                      learn_lambda2_B_phi = TRUE,
-                      lambda2_B_phi = 20,
-                      e1_phi = 0.001,
-                      e2_phi = 0.001,
-                      beta_a_phi = 10,
-                      alpha_a_phi = 5,
-                      beta_c_phi = 10,
-                      alpha_c_phi = 5,
-                      a_phi_adaptive = TRUE,
-                      a_phi_tuning_par = 1,
-                      a_phi_target_rate = 0.44,
-                      a_phi_max_adapt = 0.01,
-                      a_phi_batch_size = 50,
-                      c_phi_adaptive = TRUE,
-                      c_phi_tuning_par = 1,
-                      c_phi_target_rate = 0.44,
-                      c_phi_max_adapt = 0.01,
-                      c_phi_batch_size = 50)
+  default_phi <- list(
+    mod_type_phi = "double",
+    learn_a_phi = TRUE,
+    a_phi = .1,
+    learn_c_phi = TRUE,
+    c_phi = .1,
+    a_phi_eq_c_phi = FALSE,
+    learn_lambda2_B_phi = TRUE,
+    lambda2_B_phi = 20,
+    e1_phi = 0.001,
+    e2_phi = 0.001,
+    beta_a_phi = 10,
+    alpha_a_phi = 5,
+    beta_c_phi = 10,
+    alpha_c_phi = 5,
+    a_phi_adaptive = TRUE,
+    a_phi_tuning_par = 1,
+    a_phi_target_rate = 0.44,
+    a_phi_max_adapt = 0.01,
+    a_phi_batch_size = 50,
+    c_phi_adaptive = TRUE,
+    c_phi_tuning_par = 1,
+    c_phi_target_rate = 0.44,
+    c_phi_max_adapt = 0.01,
+    c_phi_batch_size = 50
+  )
 
   if (missing(phi_param)) {
     phi_param <- default_phi
@@ -472,7 +519,7 @@ shrinkDSM <- function(formula,
   # Extract colnames
 
   d <- ncol(z)
-  if (!is.null(colnames(z))){
+  if (!is.null(colnames(z))) {
     col_names <- colnames(z)
   } else {
     col_names <- as.character(1:d)
@@ -488,76 +535,82 @@ shrinkDSM <- function(formula,
     z_sort <- z[order, ]
     z_sort <- as.matrix(z_sort)
   }
-  if(!missing(group)){
+  if (!missing(group)) {
     # Group is guaranteed to be the values here
     group_sort <- group$values[order]
   }
 
-  if(2 %in% delta){delta <- delta - 1}
-  assert(all(delta %in% c(0,1)),
-         "delta must contain only 0/1, 1/2, or TRUE/FALSE")
+  if (2 %in% delta) {
+    delta <- delta - 1
+  }
+  assert(
+    all(delta %in% c(0, 1)),
+    "delta must contain only 0/1, 1/2, or TRUE/FALSE"
+  )
 
   delta_sort <- as.matrix(as.integer(delta[order]))
 
 
   runtime <- system.time({
-    res <- do_shrinkDSM(y_sort,
-                        z_sort,
-                        mod_type,
-                        delta_sort,
-                        S,
-                        group_sort,
-                        niter,
-                        nburn,
-                        nthin,
-                        hyperprior_param$d1,
-                        hyperprior_param$d2,
-                        hyperprior_param$e1,
-                        hyperprior_param$e2,
-                        hyperprior_param$sigma2_phi,
-                        learn_lambda2_B,
-                        learn_kappa2_B,
-                        lambda2_B,
-                        kappa2_B,
-                        learn_a_xi,
-                        learn_a_tau,
-                        a_xi,
-                        a_tau,
-                        learn_c_xi,
-                        learn_c_tau,
-                        c_xi,
-                        c_tau,
-                        a_eq_c_xi,
-                        a_eq_c_tau,
-                        MH_tuning$a_xi_tuning_par,
-                        MH_tuning$a_tau_tuning_par,
-                        MH_tuning$c_xi_tuning_par,
-                        MH_tuning$c_tau_tuning_par,
-                        hyperprior_param$beta_a_xi,
-                        hyperprior_param$beta_a_tau,
-                        hyperprior_param$alpha_a_xi,
-                        hyperprior_param$alpha_a_tau,
-                        hyperprior_param$beta_c_xi,
-                        hyperprior_param$beta_c_tau,
-                        hyperprior_param$alpha_c_xi,
-                        hyperprior_param$alpha_c_tau,
-                        sv_param$Bsigma_sv,
-                        sv_param$a0_sv,
-                        sv_param$b0_sv,
-                        display_progress,
-                        unlist(MH_tuning[grep("adaptive", names(MH_tuning))]),
-                        unlist(MH_tuning[grep("target", names(MH_tuning))]),
-                        unlist(MH_tuning[grep("max", names(MH_tuning))]),
-                        unlist(MH_tuning[grep("size", names(MH_tuning))]),
-                        tv_inputs,
-                        phi_param)
+    res <- do_shrinkDSM(
+      y_sort,
+      z_sort,
+      mod_type,
+      delta_sort,
+      S,
+      group_sort,
+      niter,
+      nburn,
+      nthin,
+      hyperprior_param$d1,
+      hyperprior_param$d2,
+      hyperprior_param$e1,
+      hyperprior_param$e2,
+      hyperprior_param$sigma2_phi,
+      learn_lambda2_B,
+      learn_kappa2_B,
+      lambda2_B,
+      kappa2_B,
+      learn_a_xi,
+      learn_a_tau,
+      a_xi,
+      a_tau,
+      learn_c_xi,
+      learn_c_tau,
+      c_xi,
+      c_tau,
+      a_eq_c_xi,
+      a_eq_c_tau,
+      MH_tuning$a_xi_tuning_par,
+      MH_tuning$a_tau_tuning_par,
+      MH_tuning$c_xi_tuning_par,
+      MH_tuning$c_tau_tuning_par,
+      hyperprior_param$beta_a_xi,
+      hyperprior_param$beta_a_tau,
+      hyperprior_param$alpha_a_xi,
+      hyperprior_param$alpha_a_tau,
+      hyperprior_param$beta_c_xi,
+      hyperprior_param$beta_c_tau,
+      hyperprior_param$alpha_c_xi,
+      hyperprior_param$alpha_c_tau,
+      sv_param$Bsigma_sv,
+      sv_param$a0_sv,
+      sv_param$b0_sv,
+      display_progress,
+      unlist(MH_tuning[grep("adaptive", names(MH_tuning))]),
+      unlist(MH_tuning[grep("target", names(MH_tuning))]),
+      unlist(MH_tuning[grep("max", names(MH_tuning))]),
+      unlist(MH_tuning[grep("size", names(MH_tuning))]),
+      tv_inputs,
+      phi_param
+    )
   })
-  if(display_progress == TRUE){
-    cat("Timing (elapsed): ", file=stderr())
-    cat(runtime["elapsed"], file=stderr())
-    cat(" seconds.\n", file=stderr())
-    cat(round((niter + nburn)/runtime[3]), "iterations per second.\n\n", file=stderr())
-    cat("Converting results to coda objects and summarizing draws... ", file=stderr())
+  if (display_progress == TRUE) {
+    cat("Timing (elapsed): ", file = stderr())
+    cat(runtime["elapsed"], file = stderr())
+    cat(" seconds.\n", file = stderr())
+    cat(round((niter + nburn) / runtime[3]), "iterations per second.\n\n", file = stderr())
+    cat("Converting results to coda objects and summarizing draws... ", file = stderr())
   }
 
 
@@ -568,11 +621,12 @@ shrinkDSM <- function(formula,
 
   # Create object to hold prior values
   res$priorvals <- c(hyperprior_param,
-                     sv_param,
-                     a_xi = a_xi,
-                     a_tau = a_tau,
-                     lambda2_B = lambda2_B,
-                     kappa2_B = kappa2_B)
+    sv_param,
+    a_xi = a_xi,
+    a_tau = a_tau,
+    lambda2_B = lambda2_B,
+    kappa2_B = kappa2_B
+  )
 
   # Add data to output
   res[["model"]] <- list()
@@ -585,55 +639,43 @@ shrinkDSM <- function(formula,
 
 
   # add attributes to the individual objects if they are distributions or individual statistics
-  nsave <- floor((niter - nburn)/nthin)
-  for (i in names(res)){
-
+  nsave <- floor((niter - nburn) / nthin)
+  for (i in names(res)) {
     attr(res[[i]], "type") <- ifelse(nsave %in% dim(res[[i]]), "sample", "stat")
 
     # Name each individual sample for plotting frontend
-    if (attr(res[[i]], "type") == "sample"){
-
-      if (i == "phi"){
-
+    if (attr(res[[i]], "type") == "sample") {
+      if (i == "phi") {
         colnames(res[[i]]) <- paste0(i, unique(group_sort))
-
-      } else if (dim(res[[i]])[2] == d){
-
-        colnames(res[[i]]) <- paste0(i, "_",  col_names)
-
+      } else if (dim(res[[i]])[2] == d) {
+        colnames(res[[i]]) <- paste0(i, "_", col_names)
       } else if (dim(res[[i]])[2] == 2 * d) {
-
         colnames(res[[i]]) <- paste0(i, "_", rep(col_names, 2))
-
-
       } else {
         colnames(res[[i]]) <- i
-
       }
     }
 
     # Change objects to be coda compatible
     # Only apply to posterior samples
-    if (attr(res[[i]], "type") == "sample"){
-
+    if (attr(res[[i]], "type") == "sample") {
       # Differentiate between TVP and non TVP
-      if (is.na(dim(res[[i]])[3]) == FALSE){
-
+      if (is.na(dim(res[[i]])[3]) == FALSE) {
         # Create a sub list containing an mcmc object for each parameter in TVP case
         dat <- res[[i]]
         res[[i]] <- list()
-        for (j in 1:dim(dat)[2]){
+        for (j in 1:dim(dat)[2]) {
           res[[i]][[j]] <- as.mcmc(t(dat[, j, ]), start = niter - nburn, end = niter, thin = nthin)
           colnames(res[[i]][[j]]) <- paste0(i, "_", j, "_", 1:ncol(res[[i]][[j]]))
 
           # make it of class mcmc.tvp for custom plotting function
           class(res[[i]][[j]]) <- c("mcmc.dsm.tvp", "mcmc")
-          attr(res[[i]][[j]], "S") <- S#c(S, max(res$model$y))
+          attr(res[[i]][[j]], "S") <- S # c(S, max(res$model$y))
           attr(res[[i]][[j]], "lastsurvtime") <- max(res$model$y)
           attr(res[[i]][[j]], "type") <- "sample"
         }
 
-        if (length(res[[i]]) == 1){
+        if (length(res[[i]]) == 1) {
           res[[i]] <- res[[i]][[j]]
         }
 
@@ -641,51 +683,51 @@ shrinkDSM <- function(formula,
         attr(res[[i]], "type") <- "sample"
 
         # Rename
-        if (dim(dat)[2] > 1){
+        if (dim(dat)[2] > 1) {
           names(res[[i]]) <- colnames(dat)
         }
-
-
       } else {
-
         res[[i]] <- as.mcmc(res[[i]], start = niter - nburn, end = niter, thin = nthin)
-
       }
     }
 
     # Create summary of posterior
     if (is.list(res[[i]]) == FALSE & attr(res[[i]], "type") == "sample") {
       if (i != "theta_sr" & i != "beta") {
-        res$summaries[[i]] <- t(apply(res[[i]], 2, function(x){
-
+        res$summaries[[i]] <- t(apply(res[[i]], 2, function(x) {
           obj <- as.mcmc(x, start = niter - nburn, end = niter, thin = nthin)
           ESS <- tryCatch(coda::effectiveSize(obj),
-                          error = function(err) {
-                            warning("Calculation of effective sample size failed for one or more variable(s). This can happen if the prior placed on the model induces extreme shrinkage.")
-                            return(NA)
-                          }, silent = TRUE)
+            error = function(err) {
+              warning("Calculation of effective sample size failed for one or more variable(s). This can happen if the prior placed on the model induces extreme shrinkage.")
+              return(NA)
+            }, silent = TRUE
+          )
 
-          return(c("mean" = mean(obj),
-                   "sd" = sd(obj),
-                   "median" = median(obj),
-                   "HPD" = HPDinterval(obj)[c(1, 2)],
-                   "ESS" = round(ESS)))
+          return(c(
+            "mean" = mean(obj),
+            "sd" = sd(obj),
+            "median" = median(obj),
+            "HPD" = HPDinterval(obj)[c(1, 2)],
+            "ESS" = round(ESS)
+          ))
         }))
       } else if (i == "theta_sr") {
-        res$summaries[[i]] <- t(apply(res[[i]], 2, function(x){
-
+        res$summaries[[i]] <- t(apply(res[[i]], 2, function(x) {
           obj <- as.mcmc(abs(x), start = niter - nburn, end = niter, thin = nthin)
           ESS <- tryCatch(coda::effectiveSize(obj),
-                          error = function(err) {
-                            warning("Calculation of effective sample size failed for one or more variable(s). This can happen if the prior placed on the model induces extreme shrinkage.")
-                            return(NA)
-                          }, silent = TRUE)
+            error = function(err) {
+              warning("Calculation of effective sample size failed for one or more variable(s). This can happen if the prior placed on the model induces extreme shrinkage.")
+              return(NA)
+            }, silent = TRUE
+          )
 
-          return(c("mean" = mean(obj),
-                   "sd" = sd(obj),
-                   "median" = median(obj),
-                   "HPD" = HPDinterval(obj)[c(1, 2)],
-                   "ESS" = round(ESS)))
+          return(c(
+            "mean" = mean(obj),
+            "sd" = sd(obj),
+            "median" = median(obj),
+            "HPD" = HPDinterval(obj)[c(1, 2)],
+            "ESS" = round(ESS)
+          ))
         }))
       }
     }
@@ -709,7 +751,7 @@ shrinkDSM <- function(formula,
 
   # add some attributes for the methods and plotting
   attr(res, "class") <- "shrinkDSM"
-  attr(res, "S") <- S#c(S, max(res$model$y))
+  attr(res, "S") <- S # c(S, max(res$model$y))
   attr(res, "lastsurvtime") <- max(res$model$y)
   if (!missing(group)) {
     attr(res, "group") <- group
@@ -721,7 +763,7 @@ shrinkDSM <- function(formula,
   attr(res, "niter") <- niter
   attr(res, "nburn") <- nburn
   attr(res, "nthin") <- nthin
-  attr(res, "colnames") <-  col_names
+  attr(res, "colnames") <- col_names
   attr(res, "tv_inputs") <- tv_inputs
 
   return(res)

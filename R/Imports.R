@@ -9,5 +9,7 @@
 #' @importFrom graphics lines
 #'
 #' @importFrom stats .getXlevels delete.response density median model.frame model.matrix model.response rexp sd
+#'
+#' @importFrom survival Surv
 
 NULL
